@@ -365,6 +365,129 @@ export async function createBill(
     return bill;
 }
 
+/**
+ * Update an existing bill with new items/quantities
+ * Atomically adjusts stock based on delta between original and new quantities
+ * @throws Error if any stock would go negative
+ */
+export async function updateBill(
+    billId: string,
+    newItems: BillItem[],
+    discountPercent: number = 0,
+    originalItems: BillItem[]
+): Promise<Bill> {
+    const db = await getDB();
+
+    // Get existing bill
+    const existingBill = await db.get('bills', billId);
+    if (!existingBill) {
+        throw new Error('Bill not found');
+    }
+
+    const now = new Date().toISOString();
+    const validDiscount = Math.max(0, Math.min(100, discountPercent));
+
+    // Calculate deltas for each medicine
+    const deltaMap = new Map<string, {
+        delta: number;
+        oldQty: number;
+        newQty: number;
+        medicineName: string;
+    }>();
+
+    // Add original items to map (these need to be restocked)
+    for (const item of originalItems) {
+        deltaMap.set(item.medicineId, {
+            delta: item.quantity, // Positive = restock
+            oldQty: item.quantity,
+            newQty: 0,
+            medicineName: item.medicineName
+        });
+    }
+
+    // Process new items (subtract from restock, or add new deduction)
+    for (const item of newItems) {
+        const existing = deltaMap.get(item.medicineId);
+        if (existing) {
+            existing.newQty = item.quantity;
+            existing.delta = existing.oldQty - item.quantity; // Positive = restock, Negative = deduct more
+        } else {
+            // New item added (shouldn't happen in Option A, but handle gracefully)
+            deltaMap.set(item.medicineId, {
+                delta: -item.quantity, // Negative = deduct
+                oldQty: 0,
+                newQty: item.quantity,
+                medicineName: item.medicineName
+            });
+        }
+    }
+
+    // Start transaction for medicines update
+    const tx = db.transaction('medicines', 'readwrite');
+
+    for (const [medicineId, { delta, oldQty, newQty, medicineName }] of deltaMap) {
+        if (delta === 0) continue; // No change
+
+        const medicine = await tx.store.get(medicineId);
+        if (!medicine) {
+            throw new Error(`Medicine not found: ${medicineName}`);
+        }
+
+        const newStock = medicine.quantity + delta;
+        if (newStock < 0) {
+            throw new Error(`Insufficient stock for ${medicineName}. Available: ${medicine.quantity}, Need to deduct: ${-delta}`);
+        }
+
+        // Build audit note
+        let auditNote: string;
+        if (delta > 0) {
+            auditNote = `Edit ${existingBill.billNumber}: returned ${delta} units (qty ${oldQty}→${newQty})`;
+        } else {
+            auditNote = `Edit ${existingBill.billNumber}: deducted ${-delta} more units (qty ${oldQty}→${newQty})`;
+        }
+
+        const updatedMedicine: Medicine = {
+            ...medicine,
+            quantity: newStock,
+            updatedAt: now,
+            auditHistory: [
+                ...medicine.auditHistory,
+                createAuditEntry(
+                    'sold',
+                    [{ field: 'quantity', oldValue: medicine.quantity, newValue: newStock }],
+                    auditNote
+                )
+            ]
+        };
+
+        await tx.store.put(updatedMedicine);
+    }
+
+    await tx.done;
+
+    // Filter out qty=0 items from new items
+    const activeItems = newItems.filter(item => item.quantity > 0);
+
+    // Calculate new totals
+    const subtotal = activeItems.reduce((sum, item) => sum + item.total, 0);
+    const discountAmount = (subtotal * validDiscount) / 100;
+    const grandTotal = subtotal - discountAmount;
+
+    // Update the bill record
+    const updatedBill: Bill = {
+        ...existingBill,
+        items: activeItems,
+        subtotal,
+        discountPercent: validDiscount,
+        discountAmount,
+        grandTotal
+    };
+
+    await db.put('bills', updatedBill);
+
+    return updatedBill;
+}
+
 /** Get all bills sorted by date (newest first) */
 export async function getAllBills(): Promise<Bill[]> {
     const db = await getDB();

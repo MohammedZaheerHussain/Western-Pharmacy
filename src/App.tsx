@@ -1,10 +1,12 @@
-// Western Pharmacy - Medicine Inventory Management App
-// Main application component with Inventory & Billing views
+/**
+ * Western Pharmacy - Medicine Inventory Management App
+ * Main application with Inventory/Billing views and Dark Mode
+ */
 
 import { useState, useCallback, useEffect } from 'react';
 import { useMedicines } from './hooks/useMedicines';
 import { useBilling } from './hooks/useBilling';
-import { Medicine, SortField, MedicineLocation, StockStatus } from './types/medicine';
+import { Medicine, SortField, MedicineLocation, StockStatus, Bill } from './types/medicine';
 import { MedicineFormData } from './components/MedicineModal';
 import {
     SearchBar,
@@ -18,13 +20,36 @@ import {
     LocationModal,
     BillingPanel
 } from './components';
-import { Plus, Pill, Package, Receipt } from 'lucide-react';
+import { Plus, Pill, Package, Receipt, Sun, Moon } from 'lucide-react';
 
 type ViewMode = 'inventory' | 'billing';
+type Theme = 'light' | 'dark' | 'system';
+
+/** Get initial theme from localStorage or system preference */
+function getInitialTheme(): Theme {
+    const stored = localStorage.getItem('theme') as Theme | null;
+    if (stored && ['light', 'dark', 'system'].includes(stored)) {
+        return stored;
+    }
+    return 'system';
+}
+
+/** Apply theme to document */
+function applyTheme(theme: Theme) {
+    const root = document.documentElement;
+
+    if (theme === 'system') {
+        const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+        root.classList.toggle('dark', prefersDark);
+    } else {
+        root.classList.toggle('dark', theme === 'dark');
+    }
+}
 
 function App() {
     const {
         medicines,
+        allMedicines,
         loading,
         filters,
         setFilters,
@@ -51,6 +76,9 @@ function App() {
     // View mode state
     const [viewMode, setViewMode] = useState<ViewMode>('inventory');
 
+    // Theme state
+    const [theme, setTheme] = useState<Theme>(getInitialTheme);
+
     // Modal states
     const [medicineModal, setMedicineModal] = useState<{ open: boolean; medicine: Medicine | null }>({
         open: false,
@@ -65,7 +93,25 @@ function App() {
     const [highlightedId, setHighlightedId] = useState<string | null>(null);
     const [actionLoading, setActionLoading] = useState(false);
 
-    // Keyboard shortcut: 'B' to toggle billing
+    // Apply theme on mount and changes
+    useEffect(() => {
+        applyTheme(theme);
+        localStorage.setItem('theme', theme);
+    }, [theme]);
+
+    // Listen for system theme changes
+    useEffect(() => {
+        const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
+        const handleChange = () => {
+            if (theme === 'system') {
+                applyTheme('system');
+            }
+        };
+        mediaQuery.addEventListener('change', handleChange);
+        return () => mediaQuery.removeEventListener('change', handleChange);
+    }, [theme]);
+
+    // Keyboard shortcuts
     useEffect(() => {
         function handleKeyDown(e: KeyboardEvent) {
             // Ignore if typing in input/textarea
@@ -74,12 +120,29 @@ function App() {
                 return;
             }
 
+            // 'B' - Toggle billing
             if (e.key.toLowerCase() === 'b') {
                 setViewMode(prev => prev === 'billing' ? 'inventory' : 'billing');
+            }
+
+            // 'D' - Toggle dark mode
+            if (e.key.toLowerCase() === 'd') {
+                setTheme(prev => prev === 'dark' ? 'light' : 'dark');
             }
         }
         window.addEventListener('keydown', handleKeyDown);
         return () => window.removeEventListener('keydown', handleKeyDown);
+    }, []);
+
+    /** Toggle theme between light/dark */
+    const toggleTheme = useCallback(() => {
+        setTheme(prev => {
+            if (prev === 'system') {
+                const isDark = document.documentElement.classList.contains('dark');
+                return isDark ? 'light' : 'dark';
+            }
+            return prev === 'dark' ? 'light' : 'dark';
+        });
     }, []);
 
     // Handle sort change
@@ -154,21 +217,27 @@ function App() {
         refreshMedicines();
     }, [refreshMedicines]);
 
+    // Handle edit bill - load into billing
+    const handleEditBill = useCallback((bill: Bill) => {
+        setViewMode('billing');
+        billing.loadBillForEdit(bill, allMedicines);
+    }, [billing, allMedicines]);
+
     if (loading) {
         return (
-            <div className="min-h-screen flex items-center justify-center bg-gray-50">
+            <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-900">
                 <div className="text-center">
                     <div className="w-12 h-12 border-4 border-medical-blue border-t-transparent rounded-full animate-spin mx-auto mb-4" />
-                    <p className="text-gray-600">Loading inventory...</p>
+                    <p className="text-gray-600 dark:text-gray-400">Loading inventory...</p>
                 </div>
             </div>
         );
     }
 
     return (
-        <div className="min-h-screen bg-gray-50">
+        <div className="min-h-screen bg-gray-50 dark:bg-gray-900 transition-colors">
             {/* Header */}
-            <header className="bg-white border-b border-gray-200 sticky-header">
+            <header className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 sticky-header transition-colors">
                 <div className="max-w-7xl mx-auto px-4 sm:px-6 py-4">
                     <div className="flex items-center justify-between mb-4">
                         <div className="flex items-center gap-3">
@@ -176,20 +245,35 @@ function App() {
                                 <Pill className="text-white" size={24} />
                             </div>
                             <div>
-                                <h1 className="text-xl font-bold text-gray-900">Western Pharmacy</h1>
-                                <p className="text-sm text-gray-500">Medicine Inventory</p>
+                                <h1 className="text-xl font-bold text-gray-900 dark:text-gray-100">Western Pharmacy</h1>
+                                <p className="text-sm text-gray-500 dark:text-gray-400">Medicine Inventory</p>
                             </div>
                         </div>
 
                         <div className="flex items-center gap-3">
+                            {/* Theme Toggle */}
+                            <button
+                                onClick={toggleTheme}
+                                className="p-2 text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 
+                                         rounded-lg transition-colors"
+                                title={`Switch to ${theme === 'dark' ? 'light' : 'dark'} mode (D)`}
+                                aria-label="Toggle theme"
+                            >
+                                {document.documentElement.classList.contains('dark') ? (
+                                    <Sun size={20} />
+                                ) : (
+                                    <Moon size={20} />
+                                )}
+                            </button>
+
                             {/* View Toggle */}
-                            <div className="flex bg-gray-100 rounded-lg p-1">
+                            <div className="flex bg-gray-100 dark:bg-gray-700 rounded-lg p-1">
                                 <button
                                     onClick={() => setViewMode('inventory')}
                                     className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium transition-colors
                                         ${viewMode === 'inventory'
-                                            ? 'bg-white text-gray-900 shadow-sm'
-                                            : 'text-gray-600 hover:text-gray-900'}`}
+                                            ? 'bg-white dark:bg-gray-600 text-gray-900 dark:text-gray-100 shadow-sm'
+                                            : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200'}`}
                                 >
                                     <Package size={16} />
                                     <span className="hidden sm:inline">Inventory</span>
@@ -198,8 +282,8 @@ function App() {
                                     onClick={() => setViewMode('billing')}
                                     className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium transition-colors
                                         ${viewMode === 'billing'
-                                            ? 'bg-white text-gray-900 shadow-sm'
-                                            : 'text-gray-600 hover:text-gray-900'}`}
+                                            ? 'bg-white dark:bg-gray-600 text-gray-900 dark:text-gray-100 shadow-sm'
+                                            : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200'}`}
                                 >
                                     <Receipt size={16} />
                                     <span className="hidden sm:inline">Billing</span>
@@ -280,7 +364,7 @@ function App() {
                 ) : (
                     /* Billing View */
                     <BillingPanel
-                        medicines={medicines}
+                        medicines={allMedicines}
                         cart={billing.cart}
                         discountPercent={billing.discountPercent}
                         subtotal={billing.subtotal}
@@ -288,7 +372,10 @@ function App() {
                         grandTotal={billing.grandTotal}
                         bills={billing.bills}
                         error={billing.error}
+                        successMessage={billing.successMessage}
                         loading={billing.loading}
+                        editingBill={billing.editingBill}
+                        isEditMode={billing.isEditMode}
                         onAddToCart={billing.addToCart}
                         onRemoveFromCart={billing.removeFromCart}
                         onUpdateQuantity={billing.updateCartQuantity}
@@ -298,7 +385,10 @@ function App() {
                         onLoadBills={billing.loadBills}
                         onExportBills={billing.exportBills}
                         onClearError={billing.clearError}
+                        onClearSuccess={billing.clearSuccess}
                         onBillComplete={handleBillComplete}
+                        onEditBill={handleEditBill}
+                        onCancelEdit={billing.cancelEdit}
                     />
                 )}
             </main>

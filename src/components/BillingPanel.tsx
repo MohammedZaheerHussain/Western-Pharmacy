@@ -1,10 +1,209 @@
-// BillingPanel - Main billing interface for selecting medicines and creating bills
+/**
+ * BillingPanel - Main billing interface for selling medicines
+ * Features: New Bill, edit mode, low-stock warnings, confirm dialogs
+ */
 
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { Medicine, CartItem, Bill } from '../types/medicine';
-import { Search, Plus, Minus, Trash2, ShoppingCart, Receipt, History, X, AlertCircle } from 'lucide-react';
+import {
+    Search, Plus, Minus, Trash2, ShoppingCart, Receipt, History,
+    X, AlertCircle, AlertTriangle, FilePlus, CheckCircle
+} from 'lucide-react';
 import { BillReceiptModal } from './BillReceiptModal';
 import { BillHistoryModal } from './BillHistoryModal';
+import { LOW_STOCK_THRESHOLD } from '../hooks/useBilling';
+
+// ============ INLINE SUB-COMPONENTS ============
+
+/** Medicine row in selection list */
+const MedicineRow = React.memo(function MedicineRow({
+    medicine,
+    onAdd,
+    formatCurrency
+}: {
+    medicine: Medicine;
+    onAdd: () => void;
+    formatCurrency: (n: number) => string;
+}) {
+    const isLowStock = medicine.quantity < LOW_STOCK_THRESHOLD && medicine.quantity > 0;
+
+    return (
+        <div className="flex items-center justify-between p-3 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">
+            <div className="flex-1 min-w-0">
+                <p className="font-medium text-gray-900 dark:text-gray-100 truncate">{medicine.name}</p>
+                <p className="text-sm text-gray-500 dark:text-gray-400">
+                    {medicine.brand} • {formatCurrency(medicine.unitPrice)} •
+                    <span className={isLowStock ? 'text-amber-600 dark:text-amber-400 font-medium' : ''}>
+                        {' '}{medicine.quantity} in stock
+                    </span>
+                    {isLowStock && <AlertTriangle size={12} className="inline ml-1 text-amber-500" />}
+                </p>
+            </div>
+            <button
+                onClick={onAdd}
+                className="ml-3 flex items-center gap-1 px-3 py-1.5 bg-medical-blue text-white 
+                         rounded-lg hover:bg-medical-blue-dark transition-colors text-sm font-medium"
+                aria-label={`Add ${medicine.name} to cart`}
+            >
+                <Plus size={16} />
+                Add
+            </button>
+        </div>
+    );
+});
+
+/** Cart item row with quantity controls */
+const CartRow = React.memo(function CartRow({
+    item,
+    isEditMode,
+    onRemove,
+    onUpdateQty,
+    formatCurrency
+}: {
+    item: CartItem & { originalQuantity?: number };
+    isEditMode: boolean;
+    onRemove: () => void;
+    onUpdateQty: (qty: number) => void;
+    formatCurrency: (n: number) => string;
+}) {
+    // Calculate if this will leave low stock
+    const effectiveMax = isEditMode && item.originalQuantity
+        ? item.availableStock + item.originalQuantity
+        : item.availableStock;
+    const postSale = effectiveMax - item.quantity;
+    const isLowStockAfter = postSale > 0 && postSale < LOW_STOCK_THRESHOLD;
+    const isRemoved = isEditMode && item.quantity === 0;
+
+    return (
+        <div className={`rounded-lg p-3 ${isRemoved
+            ? 'bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-800'
+            : isLowStockAfter
+                ? 'low-stock-warning'
+                : 'bg-gray-50 dark:bg-gray-800'
+            }`}>
+            <div className="flex items-start justify-between mb-2">
+                <div className="flex-1 min-w-0">
+                    <p className={`font-medium truncate ${isRemoved ? 'text-red-600 dark:text-red-400 line-through' : 'text-gray-900 dark:text-gray-100'}`}>
+                        {item.medicineName}
+                    </p>
+                    <p className="text-sm text-gray-500 dark:text-gray-400">{formatCurrency(item.unitPrice)} each</p>
+                </div>
+                <button
+                    onClick={onRemove}
+                    className="text-red-500 hover:text-red-700 p-1"
+                    title={isEditMode ? "Set quantity to 0 (will restock)" : "Remove"}
+                    aria-label="Remove item"
+                >
+                    <Trash2 size={16} />
+                </button>
+            </div>
+
+            <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                    <button
+                        onClick={() => onUpdateQty(item.quantity - 1)}
+                        disabled={!isEditMode && item.quantity <= 1}
+                        className="w-8 h-8 flex items-center justify-center bg-white dark:bg-gray-700 border 
+                                 border-gray-200 dark:border-gray-600 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-600 
+                                 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                        aria-label="Decrease quantity"
+                    >
+                        <Minus size={14} />
+                    </button>
+                    <input
+                        type="number"
+                        value={item.quantity}
+                        onChange={(e) => onUpdateQty(parseInt(e.target.value) || 0)}
+                        min={isEditMode ? 0 : 1}
+                        max={effectiveMax}
+                        className="w-14 text-center py-1 border border-gray-200 dark:border-gray-600 
+                                 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
+                        aria-label="Quantity"
+                    />
+                    <button
+                        onClick={() => onUpdateQty(item.quantity + 1)}
+                        disabled={item.quantity >= effectiveMax}
+                        className="w-8 h-8 flex items-center justify-center bg-white dark:bg-gray-700 border 
+                                 border-gray-200 dark:border-gray-600 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-600 
+                                 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                        aria-label="Increase quantity"
+                    >
+                        <Plus size={14} />
+                    </button>
+                    <span className="text-xs text-gray-400 dark:text-gray-500">
+                        max {effectiveMax}
+                    </span>
+                </div>
+                <div className="text-right">
+                    <p className="font-semibold text-gray-900 dark:text-gray-100">
+                        {formatCurrency(item.total)}
+                    </p>
+                    {isLowStockAfter && (
+                        <p className="text-xs text-amber-600 dark:text-amber-400 flex items-center gap-1">
+                            <AlertTriangle size={10} />
+                            {postSale} left
+                        </p>
+                    )}
+                </div>
+            </div>
+        </div>
+    );
+});
+
+/** Confirm dialog inline component */
+function ConfirmDialog({
+    open,
+    title,
+    message,
+    confirmLabel = 'Confirm',
+    cancelLabel = 'Cancel',
+    onConfirm,
+    onCancel,
+    variant = 'danger'
+}: {
+    open: boolean;
+    title: string;
+    message: string;
+    confirmLabel?: string;
+    cancelLabel?: string;
+    onConfirm: () => void;
+    onCancel: () => void;
+    variant?: 'danger' | 'warning';
+}) {
+    if (!open) return null;
+
+    return (
+        <div className="confirm-overlay" onClick={onCancel}>
+            <div
+                className="bg-white dark:bg-gray-800 rounded-xl p-6 max-w-sm mx-4 shadow-xl"
+                onClick={(e) => e.stopPropagation()}
+            >
+                <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-2">{title}</h3>
+                <p className="text-gray-600 dark:text-gray-400 mb-4">{message}</p>
+                <div className="flex gap-3">
+                    <button
+                        onClick={onCancel}
+                        className="flex-1 px-4 py-2 bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 
+                                 rounded-lg hover:bg-gray-300 dark:hover:bg-gray-600 font-medium"
+                    >
+                        {cancelLabel}
+                    </button>
+                    <button
+                        onClick={onConfirm}
+                        className={`flex-1 px-4 py-2 text-white rounded-lg font-medium ${variant === 'danger'
+                            ? 'bg-red-600 hover:bg-red-700'
+                            : 'bg-amber-600 hover:bg-amber-700'
+                            }`}
+                    >
+                        {confirmLabel}
+                    </button>
+                </div>
+            </div>
+        </div>
+    );
+}
+
+// ============ MAIN COMPONENT ============
 
 interface BillingPanelProps {
     medicines: Medicine[];
@@ -15,7 +214,10 @@ interface BillingPanelProps {
     grandTotal: number;
     bills: Bill[];
     error: string | null;
+    successMessage: string | null;
     loading: boolean;
+    editingBill: Bill | null;
+    isEditMode: boolean;
     onAddToCart: (medicine: Medicine, quantity?: number) => void;
     onRemoveFromCart: (medicineId: string) => void;
     onUpdateQuantity: (medicineId: string, quantity: number) => void;
@@ -25,8 +227,14 @@ interface BillingPanelProps {
     onLoadBills: () => Promise<void>;
     onExportBills: () => void;
     onClearError: () => void;
+    onClearSuccess: () => void;
     onBillComplete: () => void;
+    onEditBill: (bill: Bill) => void;
+    onCancelEdit: () => void;
 }
+
+// Need React import for memo
+import React from 'react';
 
 export function BillingPanel({
     medicines,
@@ -37,7 +245,10 @@ export function BillingPanel({
     grandTotal,
     bills,
     error,
+    successMessage,
     loading,
+    editingBill,
+    isEditMode,
     onAddToCart,
     onRemoveFromCart,
     onUpdateQuantity,
@@ -47,124 +258,199 @@ export function BillingPanel({
     onLoadBills,
     onExportBills,
     onClearError,
-    onBillComplete
+    onClearSuccess,
+    onBillComplete,
+    onEditBill,
+    onCancelEdit
 }: BillingPanelProps) {
     const [search, setSearch] = useState('');
     const [receiptModal, setReceiptModal] = useState<Bill | null>(null);
     const [showHistory, setShowHistory] = useState(false);
-    const [successMessage, setSuccessMessage] = useState<string | null>(null);
+    const [confirmDialog, setConfirmDialog] = useState<{
+        open: boolean;
+        type: 'newBill' | 'cancelEdit' | 'removeItem';
+        itemId?: string;
+    }>({ open: false, type: 'newBill' });
+
+    const searchInputRef = useRef<HTMLInputElement>(null);
 
     // Load bills on mount
     useEffect(() => {
         onLoadBills();
     }, [onLoadBills]);
 
-    // Filter medicines by search
+    // Filter medicines by search (only show in-stock for non-edit mode)
     const filteredMedicines = useMemo(() => {
-        if (!search.trim()) return medicines.filter(m => m.quantity > 0);
+        const inStock = medicines.filter(m => m.quantity > 0);
+        if (!search.trim()) return inStock;
 
         const term = search.toLowerCase();
-        return medicines.filter(m =>
-            m.quantity > 0 && (
-                m.name.toLowerCase().includes(term) ||
-                m.brand.toLowerCase().includes(term) ||
-                m.salt.toLowerCase().includes(term)
-            )
+        return inStock.filter(m =>
+            m.name.toLowerCase().includes(term) ||
+            m.brand.toLowerCase().includes(term) ||
+            m.salt.toLowerCase().includes(term)
         );
     }, [medicines, search]);
 
-    // Handle confirm bill
-    const handleConfirmBill = async () => {
-        try {
-            const bill = await onConfirmBill();
-            setReceiptModal(bill);
-            setSuccessMessage(`Bill ${bill.billNumber} created successfully!`);
-            setTimeout(() => setSuccessMessage(null), 3000);
-        } catch {
-            // Error handled by parent
-        }
-    };
-
-    // Close receipt and refresh inventory
-    const handleReceiptClose = () => {
-        setReceiptModal(null);
-        onBillComplete();
-    };
-
-    // Format currency
-    const formatCurrency = (amount: number) => {
+    /** Format currency in INR */
+    const formatCurrency = useCallback((amount: number) => {
         return new Intl.NumberFormat('en-IN', {
             style: 'currency',
             currency: 'INR',
             minimumFractionDigits: 2
         }).format(amount);
-    };
+    }, []);
+
+    /** Handle confirm bill */
+    const handleConfirmBill = useCallback(async () => {
+        try {
+            const bill = await onConfirmBill();
+            setReceiptModal(bill);
+        } catch {
+            // Error handled by parent
+        }
+    }, [onConfirmBill]);
+
+    /** Close receipt and refresh inventory */
+    const handleReceiptClose = useCallback(() => {
+        setReceiptModal(null);
+        onBillComplete();
+    }, [onBillComplete]);
+
+    /** Handle New Bill button */
+    const handleNewBill = useCallback(() => {
+        if (cart.length > 0 || isEditMode) {
+            setConfirmDialog({ open: true, type: isEditMode ? 'cancelEdit' : 'newBill' });
+        } else {
+            searchInputRef.current?.focus();
+        }
+    }, [cart.length, isEditMode]);
+
+    /** Confirm new bill / cancel edit */
+    const handleConfirmNewBill = useCallback(() => {
+        if (isEditMode) {
+            onCancelEdit();
+        } else {
+            onClearCart();
+        }
+        setConfirmDialog({ open: false, type: 'newBill' });
+        setTimeout(() => searchInputRef.current?.focus(), 100);
+    }, [isEditMode, onCancelEdit, onClearCart]);
+
+    /** Handle remove with confirmation in edit mode */
+    const handleRemove = useCallback((medicineId: string) => {
+        if (isEditMode) {
+            setConfirmDialog({ open: true, type: 'removeItem', itemId: medicineId });
+        } else {
+            onRemoveFromCart(medicineId);
+        }
+    }, [isEditMode, onRemoveFromCart]);
+
+    /** Confirm remove in edit mode */
+    const handleConfirmRemove = useCallback(() => {
+        if (confirmDialog.itemId) {
+            onRemoveFromCart(confirmDialog.itemId);
+        }
+        setConfirmDialog({ open: false, type: 'newBill' });
+    }, [confirmDialog.itemId, onRemoveFromCart]);
+
+    /** Handle edit bill from history */
+    const handleEditFromHistory = useCallback((bill: Bill) => {
+        setShowHistory(false);
+        onEditBill(bill);
+    }, [onEditBill]);
+
+    // Active cart items (exclude qty=0 in edit mode for display purposes)
+    const displayCart = isEditMode ? cart : cart.filter(item => item.quantity > 0);
+    // Note: displayCart used below in cart section
 
     return (
         <div className="flex flex-col lg:flex-row gap-6">
             {/* Left: Medicine Selection */}
-            <div className="flex-1 bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-                <div className="p-4 border-b border-gray-200">
+            <div className="flex-1 bg-white dark:bg-gray-900 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden">
+                <div className="p-4 border-b border-gray-200 dark:border-gray-700">
                     <div className="flex items-center justify-between mb-3">
-                        <h2 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
+                        <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100 flex items-center gap-2">
                             <ShoppingCart size={20} className="text-medical-blue" />
-                            Select Medicines
+                            {isEditMode ? 'Editing Bill' : 'Select Medicines'}
                         </h2>
-                        <button
-                            onClick={() => setShowHistory(true)}
-                            className="flex items-center gap-1.5 px-3 py-1.5 text-sm text-gray-600 
-                                     hover:bg-gray-100 rounded-lg transition-colors"
-                        >
-                            <History size={16} />
-                            <span className="hidden sm:inline">Bill History</span>
-                        </button>
+                        <div className="flex items-center gap-2">
+                            <button
+                                onClick={handleNewBill}
+                                className="flex items-center gap-1.5 px-3 py-1.5 text-sm text-medical-blue 
+                                         hover:bg-medical-blue/10 rounded-lg transition-colors font-medium"
+                                aria-label="Start new bill"
+                            >
+                                <FilePlus size={16} />
+                                <span className="hidden sm:inline">New Bill</span>
+                            </button>
+                            <button
+                                onClick={() => setShowHistory(true)}
+                                className="flex items-center gap-1.5 px-3 py-1.5 text-sm text-gray-600 dark:text-gray-400 
+                                         hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition-colors"
+                                aria-label="View bill history"
+                            >
+                                <History size={16} />
+                                <span className="hidden sm:inline">History</span>
+                            </button>
+                        </div>
                     </div>
+
+                    {/* Edit mode banner */}
+                    {isEditMode && editingBill && (
+                        <div className="mb-3 p-2 bg-blue-50 dark:bg-blue-900/30 border border-blue-200 dark:border-blue-800 
+                                      rounded-lg flex items-center justify-between">
+                            <span className="text-sm text-blue-700 dark:text-blue-300 font-medium">
+                                Editing {editingBill.billNumber} - Save to update stock & totals
+                            </span>
+                            <button
+                                onClick={() => setConfirmDialog({ open: true, type: 'cancelEdit' })}
+                                className="text-blue-600 dark:text-blue-400 hover:text-blue-800 text-sm"
+                            >
+                                Cancel
+                            </button>
+                        </div>
+                    )}
 
                     {/* Search */}
                     <div className="relative">
                         <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
                         <input
+                            ref={searchInputRef}
                             type="text"
                             value={search}
                             onChange={(e) => setSearch(e.target.value)}
                             placeholder="Search medicines..."
-                            className="w-full pl-10 pr-4 py-2 rounded-lg border border-gray-200 
+                            className="w-full pl-10 pr-4 py-2 rounded-lg border border-gray-200 dark:border-gray-600 
+                                     bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100
                                      focus:border-medical-blue focus:ring-2 focus:ring-medical-blue/20"
+                            disabled={isEditMode}
+                            aria-label="Search medicines"
                         />
                     </div>
                 </div>
 
                 {/* Medicine List */}
                 <div className="max-h-[400px] overflow-y-auto">
-                    {filteredMedicines.length === 0 ? (
-                        <div className="p-8 text-center text-gray-500">
+                    {isEditMode ? (
+                        <div className="p-6 text-center text-gray-500 dark:text-gray-400">
+                            <AlertCircle size={32} className="mx-auto mb-2 text-gray-300" />
+                            <p>Cannot add new medicines in edit mode</p>
+                            <p className="text-sm">Modify quantities in the cart or create a new bill</p>
+                        </div>
+                    ) : filteredMedicines.length === 0 ? (
+                        <div className="p-8 text-center text-gray-500 dark:text-gray-400">
                             {search ? 'No medicines found' : 'No medicines in stock'}
                         </div>
                     ) : (
-                        <div className="divide-y divide-gray-100">
+                        <div className="divide-y divide-gray-100 dark:divide-gray-800">
                             {filteredMedicines.map(medicine => (
-                                <div
+                                <MedicineRow
                                     key={medicine.id}
-                                    className="flex items-center justify-between p-3 hover:bg-gray-50 transition-colors"
-                                >
-                                    <div className="flex-1 min-w-0">
-                                        <p className="font-medium text-gray-900 truncate">{medicine.name}</p>
-                                        <p className="text-sm text-gray-500">
-                                            {medicine.brand} • {formatCurrency(medicine.unitPrice)} •
-                                            <span className={medicine.quantity < 10 ? 'text-red-600 font-medium' : ''}>
-                                                {' '}{medicine.quantity} in stock
-                                            </span>
-                                        </p>
-                                    </div>
-                                    <button
-                                        onClick={() => onAddToCart(medicine)}
-                                        className="ml-3 flex items-center gap-1 px-3 py-1.5 bg-medical-blue text-white 
-                                                 rounded-lg hover:bg-medical-blue-dark transition-colors text-sm font-medium"
-                                    >
-                                        <Plus size={16} />
-                                        Add
-                                    </button>
-                                </div>
+                                    medicine={medicine}
+                                    onAdd={() => onAddToCart(medicine)}
+                                    formatCurrency={formatCurrency}
+                                />
                             ))}
                         </div>
                     )}
@@ -172,16 +458,16 @@ export function BillingPanel({
             </div>
 
             {/* Right: Cart & Summary */}
-            <div className="lg:w-96 bg-white rounded-xl shadow-sm border border-gray-200 flex flex-col">
-                <div className="p-4 border-b border-gray-200">
+            <div className="lg:w-96 bg-white dark:bg-gray-900 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 flex flex-col">
+                <div className="p-4 border-b border-gray-200 dark:border-gray-700">
                     <div className="flex items-center justify-between">
-                        <h2 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
+                        <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100 flex items-center gap-2">
                             <Receipt size={20} className="text-medical-blue" />
-                            Current Bill
+                            {isEditMode ? `Edit ${editingBill?.billNumber}` : 'Current Bill'}
                         </h2>
-                        {cart.length > 0 && (
+                        {cart.length > 0 && !isEditMode && (
                             <button
-                                onClick={onClearCart}
+                                onClick={() => setConfirmDialog({ open: true, type: 'newBill' })}
                                 className="text-sm text-red-600 hover:text-red-700 font-medium"
                             >
                                 Clear All
@@ -192,12 +478,20 @@ export function BillingPanel({
 
                 {/* Error Message */}
                 {error && (
-                    <div className="mx-4 mt-3 p-3 bg-red-50 border border-red-200 rounded-lg flex items-start gap-2">
-                        <AlertCircle size={18} className="text-red-600 flex-shrink-0 mt-0.5" />
+                    <div className={`mx-4 mt-3 p-3 rounded-lg flex items-start gap-2 ${error.startsWith('Warning')
+                        ? 'bg-amber-50 dark:bg-amber-900/30 border border-amber-200 dark:border-amber-800'
+                        : 'bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-800'
+                        }`}>
+                        {error.startsWith('Warning')
+                            ? <AlertTriangle size={18} className="text-amber-600 flex-shrink-0 mt-0.5" />
+                            : <AlertCircle size={18} className="text-red-600 flex-shrink-0 mt-0.5" />
+                        }
                         <div className="flex-1">
-                            <p className="text-sm text-red-700">{error}</p>
+                            <p className={`text-sm ${error.startsWith('Warning') ? 'text-amber-700 dark:text-amber-300' : 'text-red-700 dark:text-red-300'}`}>
+                                {error}
+                            </p>
                         </div>
-                        <button onClick={onClearError} className="text-red-400 hover:text-red-600">
+                        <button onClick={onClearError} className="text-gray-400 hover:text-gray-600">
                             <X size={16} />
                         </button>
                     </div>
@@ -205,87 +499,50 @@ export function BillingPanel({
 
                 {/* Success Message */}
                 {successMessage && (
-                    <div className="mx-4 mt-3 p-3 bg-green-50 border border-green-200 rounded-lg">
-                        <p className="text-sm text-green-700">{successMessage}</p>
+                    <div className="mx-4 mt-3 p-3 bg-green-50 dark:bg-green-900/30 border border-green-200 dark:border-green-800 
+                                  rounded-lg flex items-center gap-2">
+                        <CheckCircle size={18} className="text-green-600 dark:text-green-400" />
+                        <p className="text-sm text-green-700 dark:text-green-300 flex-1">{successMessage}</p>
+                        <button onClick={onClearSuccess} className="text-green-400 hover:text-green-600">
+                            <X size={16} />
+                        </button>
                     </div>
                 )}
 
                 {/* Cart Items */}
                 <div className="flex-1 overflow-y-auto p-4 space-y-3">
-                    {cart.length === 0 ? (
-                        <div className="text-center text-gray-500 py-8">
-                            <ShoppingCart size={40} className="mx-auto mb-2 text-gray-300" />
+                    {displayCart.length === 0 ? (
+                        <div className="text-center text-gray-500 dark:text-gray-400 py-8">
+                            <ShoppingCart size={40} className="mx-auto mb-2 text-gray-300 dark:text-gray-600" />
                             <p>Cart is empty</p>
                             <p className="text-sm">Add medicines from the left</p>
                         </div>
                     ) : (
                         cart.map(item => (
-                            <div key={item.medicineId} className="bg-gray-50 rounded-lg p-3">
-                                <div className="flex items-start justify-between mb-2">
-                                    <div className="flex-1 min-w-0">
-                                        <p className="font-medium text-gray-900 truncate">{item.medicineName}</p>
-                                        <p className="text-sm text-gray-500">{formatCurrency(item.unitPrice)} each</p>
-                                    </div>
-                                    <button
-                                        onClick={() => onRemoveFromCart(item.medicineId)}
-                                        className="text-red-500 hover:text-red-700 p-1"
-                                        title="Remove"
-                                    >
-                                        <Trash2 size={16} />
-                                    </button>
-                                </div>
-
-                                <div className="flex items-center justify-between">
-                                    <div className="flex items-center gap-2">
-                                        <button
-                                            onClick={() => onUpdateQuantity(item.medicineId, item.quantity - 1)}
-                                            className="w-8 h-8 flex items-center justify-center bg-white border 
-                                                     border-gray-200 rounded-lg hover:bg-gray-100 transition-colors"
-                                        >
-                                            <Minus size={14} />
-                                        </button>
-                                        <input
-                                            type="number"
-                                            value={item.quantity}
-                                            onChange={(e) => onUpdateQuantity(item.medicineId, parseInt(e.target.value) || 0)}
-                                            min={1}
-                                            max={item.availableStock}
-                                            className="w-14 text-center py-1 border border-gray-200 rounded-lg"
-                                        />
-                                        <button
-                                            onClick={() => onUpdateQuantity(item.medicineId, item.quantity + 1)}
-                                            disabled={item.quantity >= item.availableStock}
-                                            className="w-8 h-8 flex items-center justify-center bg-white border 
-                                                     border-gray-200 rounded-lg hover:bg-gray-100 transition-colors
-                                                     disabled:opacity-50 disabled:cursor-not-allowed"
-                                        >
-                                            <Plus size={14} />
-                                        </button>
-                                        <span className="text-xs text-gray-400">
-                                            max {item.availableStock}
-                                        </span>
-                                    </div>
-                                    <p className="font-semibold text-gray-900">
-                                        {formatCurrency(item.total)}
-                                    </p>
-                                </div>
-                            </div>
+                            <CartRow
+                                key={item.medicineId}
+                                item={item as CartItem & { originalQuantity?: number }}
+                                isEditMode={isEditMode}
+                                onRemove={() => handleRemove(item.medicineId)}
+                                onUpdateQty={(qty) => onUpdateQuantity(item.medicineId, qty)}
+                                formatCurrency={formatCurrency}
+                            />
                         ))
                     )}
                 </div>
 
                 {/* Summary & Checkout */}
-                {cart.length > 0 && (
-                    <div className="border-t border-gray-200 p-4 space-y-3 bg-gray-50">
+                {(cart.length > 0 || isEditMode) && (
+                    <div className="border-t border-gray-200 dark:border-gray-700 p-4 space-y-3 bg-gray-50 dark:bg-gray-800/50">
                         {/* Subtotal */}
                         <div className="flex justify-between text-sm">
-                            <span className="text-gray-600">Subtotal ({cart.length} items)</span>
-                            <span className="font-medium">{formatCurrency(subtotal)}</span>
+                            <span className="text-gray-600 dark:text-gray-400">Subtotal ({cart.filter(i => i.quantity > 0).length} items)</span>
+                            <span className="font-medium text-gray-900 dark:text-gray-100">{formatCurrency(subtotal)}</span>
                         </div>
 
                         {/* Discount */}
                         <div className="flex items-center justify-between gap-3">
-                            <label className="text-sm text-gray-600">Discount</label>
+                            <label className="text-sm text-gray-600 dark:text-gray-400">Discount</label>
                             <div className="flex items-center gap-2">
                                 <input
                                     type="number"
@@ -293,25 +550,27 @@ export function BillingPanel({
                                     onChange={(e) => onSetDiscount(parseFloat(e.target.value) || 0)}
                                     min={0}
                                     max={100}
-                                    className="w-16 text-center py-1 border border-gray-200 rounded-lg text-sm"
+                                    className="w-16 text-center py-1 border border-gray-200 dark:border-gray-600 
+                                             rounded-lg text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
+                                    aria-label="Discount percentage"
                                 />
-                                <span className="text-sm text-gray-500">%</span>
-                                <span className="text-sm text-gray-400">
+                                <span className="text-sm text-gray-500 dark:text-gray-400">%</span>
+                                <span className="text-sm text-gray-400 dark:text-gray-500">
                                     (-{formatCurrency(discountAmount)})
                                 </span>
                             </div>
                         </div>
 
                         {/* Grand Total */}
-                        <div className="flex justify-between text-lg font-bold pt-2 border-t border-gray-300">
-                            <span>Grand Total</span>
+                        <div className="flex justify-between text-lg font-bold pt-2 border-t border-gray-300 dark:border-gray-600">
+                            <span className="text-gray-900 dark:text-gray-100">Grand Total</span>
                             <span className="text-medical-blue">{formatCurrency(grandTotal)}</span>
                         </div>
 
                         {/* Confirm Button */}
                         <button
                             onClick={handleConfirmBill}
-                            disabled={loading || cart.length === 0}
+                            disabled={loading || (cart.filter(i => i.quantity > 0).length === 0 && !isEditMode)}
                             className="w-full py-3 bg-green-600 text-white rounded-lg font-semibold
                                      hover:bg-green-700 transition-colors disabled:opacity-50 
                                      disabled:cursor-not-allowed flex items-center justify-center gap-2"
@@ -324,7 +583,7 @@ export function BillingPanel({
                             ) : (
                                 <>
                                     <Receipt size={20} />
-                                    Confirm Bill
+                                    {isEditMode ? 'Update Bill' : 'Confirm Bill'}
                                 </>
                             )}
                         </button>
@@ -350,8 +609,32 @@ export function BillingPanel({
                         setShowHistory(false);
                         setReceiptModal(bill);
                     }}
+                    onEditBill={handleEditFromHistory}
                 />
             )}
+
+            {/* Confirm Dialog */}
+            <ConfirmDialog
+                open={confirmDialog.open}
+                title={
+                    confirmDialog.type === 'removeItem'
+                        ? 'Remove Item?'
+                        : confirmDialog.type === 'cancelEdit'
+                            ? 'Cancel Editing?'
+                            : 'Start New Bill?'
+                }
+                message={
+                    confirmDialog.type === 'removeItem'
+                        ? 'Set quantity to 0? This will restock the item when you save.'
+                        : confirmDialog.type === 'cancelEdit'
+                            ? 'Discard all changes and cancel editing?'
+                            : 'Discard current bill and start fresh?'
+                }
+                confirmLabel={confirmDialog.type === 'removeItem' ? 'Remove' : 'Discard'}
+                onConfirm={confirmDialog.type === 'removeItem' ? handleConfirmRemove : handleConfirmNewBill}
+                onCancel={() => setConfirmDialog({ open: false, type: 'newBill' })}
+                variant={confirmDialog.type === 'removeItem' ? 'warning' : 'danger'}
+            />
         </div>
     );
 }

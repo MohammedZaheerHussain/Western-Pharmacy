@@ -15,8 +15,11 @@ A simple, fast, and clean medicine inventory management system designed for smal
 - 📜 **Audit History** - Track all changes to inventory
 - 💾 **Offline First** - Works without internet using IndexedDB
 - 📱 **Responsive** - Works on desktop, tablet, and mobile
-- 🧾 **Billing** - Create bills, deduct stock, print receipts, view history
-- ⌨️ **Keyboard Shortcuts** - Press `B` for billing, `/` to search, `Esc` to close
+- 🧾 **Billing** - Create bills, edit incorrect bills, print receipts, view history
+- ✏️ **Bill Editing** - Fix qty errors, items restock automatically
+- 🖨️ **Professional Receipts** - Thermal printer optimized with pharmacy header
+- 🌙 **Dark Mode** - Toggle with `D` key, persists across sessions
+- ⌨️ **Keyboard Shortcuts** - `B` billing, `D` dark mode, `/` search, `Esc` close
 
 ## Tech Stack
 
