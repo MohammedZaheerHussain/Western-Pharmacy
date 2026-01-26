@@ -1,9 +1,10 @@
 // MedicineModal component for Add/Edit medicine
-// Includes form validation and audit history display
+// Supports multi-batch entry with dynamic batch rows
 
 import { useState, useEffect, useRef } from 'react';
 import { Medicine, MedicineCategory, MEDICINE_CATEGORIES, MedicineLocation } from '../types/medicine';
-import { X, ChevronDown, ChevronUp, Clock } from 'lucide-react';
+import { X, ChevronDown, ChevronUp, Clock, Plus, Trash2, Package } from 'lucide-react';
+import { generateBatchId } from '../services/storage';
 
 interface MedicineModalProps {
     isOpen: boolean;
@@ -12,16 +13,37 @@ interface MedicineModalProps {
     onSave: (data: MedicineFormData) => Promise<void>;
 }
 
+/** Batch entry for the form */
+interface BatchEntry {
+    id: string;
+    batchNumber: string;
+    expiryDate: string;
+    quantity: number;
+}
+
 export interface MedicineFormData {
     name: string;
     brand: string;
     salt: string;
     category: MedicineCategory;
-    quantity: number;
     unitPrice: number;
     location: MedicineLocation;
+    // Multi-batch support
+    batches: BatchEntry[];
+    // Computed from batches
+    quantity: number;
     batchNumber: string;
     expiryDate: string;
+}
+
+/** Create empty batch entry */
+function createEmptyBatch(): BatchEntry {
+    return {
+        id: generateBatchId(),
+        batchNumber: '',
+        expiryDate: '',
+        quantity: 0
+    };
 }
 
 const initialFormData: MedicineFormData = {
@@ -29,9 +51,10 @@ const initialFormData: MedicineFormData = {
     brand: '',
     salt: '',
     category: 'Tablet',
-    quantity: 0,
     unitPrice: 0,
     location: { rack: '', shelf: '', drawer: '' },
+    batches: [createEmptyBatch()],
+    quantity: 0,
     batchNumber: '',
     expiryDate: ''
 };
@@ -41,30 +64,64 @@ export function MedicineModal({ isOpen, medicine, onClose, onSave }: MedicineMod
     const [errors, setErrors] = useState<Partial<Record<keyof MedicineFormData | 'rack' | 'shelf', string>>>({});
     const [loading, setSaving] = useState(false);
     const [showAudit, setShowAudit] = useState(false);
+    const [showBatches, setShowBatches] = useState(true);
     const modalRef = useRef<HTMLDivElement>(null);
     const firstInputRef = useRef<HTMLInputElement>(null);
+
+    // Calculate total quantity from batches
+    const totalQuantity = formData.batches.reduce((sum, b) => sum + (b.quantity || 0), 0);
+
+    // Get earliest expiry from batches
+    const earliestExpiry = formData.batches
+        .filter(b => b.expiryDate)
+        .sort((a, b) => new Date(a.expiryDate).getTime() - new Date(b.expiryDate).getTime())[0]?.expiryDate || '';
 
     // Initialize form with medicine data or reset
     useEffect(() => {
         if (isOpen) {
             if (medicine) {
+                // Convert medicine to form data
+                let batches: BatchEntry[] = [];
+
+                if (medicine.batches && medicine.batches.length > 0) {
+                    // Multi-batch medicine
+                    batches = medicine.batches.map(b => ({
+                        id: b.id,
+                        batchNumber: b.batchNumber,
+                        expiryDate: b.expiryDate,
+                        quantity: b.quantity
+                    }));
+                } else {
+                    // Legacy single-batch medicine - convert to batch entry
+                    batches = [{
+                        id: generateBatchId(),
+                        batchNumber: medicine.batchNumber || '',
+                        expiryDate: medicine.expiryDate || '',
+                        quantity: medicine.quantity || 0
+                    }];
+                }
+
                 setFormData({
                     name: medicine.name,
                     brand: medicine.brand,
                     salt: medicine.salt,
                     category: medicine.category,
-                    quantity: medicine.quantity,
                     unitPrice: medicine.unitPrice || 0,
                     location: { ...medicine.location },
+                    batches,
+                    quantity: medicine.quantity,
                     batchNumber: medicine.batchNumber,
                     expiryDate: medicine.expiryDate
                 });
             } else {
-                setFormData(initialFormData);
+                setFormData({
+                    ...initialFormData,
+                    batches: [createEmptyBatch()]
+                });
             }
             setErrors({});
             setShowAudit(false);
-            // Focus first input after modal opens
+            setShowBatches(true);
             setTimeout(() => firstInputRef.current?.focus(), 100);
         }
     }, [isOpen, medicine]);
@@ -87,15 +144,18 @@ export function MedicineModal({ isOpen, medicine, onClose, onSave }: MedicineMod
         }
     };
 
-    // Form validation - only name is required
+    // Form validation
     const validate = (): boolean => {
         const newErrors: typeof errors = {};
 
         if (!formData.name.trim()) {
             newErrors.name = 'Medicine name is required';
         }
-        if (formData.quantity < 0) {
-            newErrors.quantity = 'Quantity cannot be negative';
+
+        // Check at least one batch has quantity
+        const hasValidBatch = formData.batches.some(b => b.quantity > 0);
+        if (!hasValidBatch && formData.batches.length > 0) {
+            // Allow zero quantity for now, just warn
         }
 
         setErrors(newErrors);
@@ -108,7 +168,14 @@ export function MedicineModal({ isOpen, medicine, onClose, onSave }: MedicineMod
 
         setSaving(true);
         try {
-            await onSave(formData);
+            // Prepare form data with computed values
+            const submitData: MedicineFormData = {
+                ...formData,
+                quantity: totalQuantity,
+                expiryDate: earliestExpiry,
+                batchNumber: formData.batches.length === 1 ? formData.batches[0].batchNumber : ''
+            };
+            await onSave(submitData);
             onClose();
         } catch {
             // Error handled by parent
@@ -132,9 +199,30 @@ export function MedicineModal({ isOpen, medicine, onClose, onSave }: MedicineMod
             ...prev,
             location: { ...prev.location, [field]: value }
         }));
-        if (errors[field as 'rack' | 'shelf']) {
-            setErrors(prev => ({ ...prev, [field]: undefined }));
-        }
+    };
+
+    // Batch management
+    const addBatch = () => {
+        setFormData(prev => ({
+            ...prev,
+            batches: [...prev.batches, createEmptyBatch()]
+        }));
+    };
+
+    const removeBatch = (batchId: string) => {
+        setFormData(prev => ({
+            ...prev,
+            batches: prev.batches.filter(b => b.id !== batchId)
+        }));
+    };
+
+    const updateBatch = (batchId: string, field: keyof BatchEntry, value: string | number) => {
+        setFormData(prev => ({
+            ...prev,
+            batches: prev.batches.map(b =>
+                b.id === batchId ? { ...b, [field]: value } : b
+            )
+        }));
     };
 
     // Format audit timestamp
@@ -154,21 +242,21 @@ export function MedicineModal({ isOpen, medicine, onClose, onSave }: MedicineMod
         <div className="modal-backdrop" onClick={handleBackdropClick}>
             <div
                 ref={modalRef}
-                className="modal-content bg-white rounded-2xl shadow-xl w-full max-w-lg max-h-[90vh] 
+                className="modal-content bg-white dark:bg-gray-900 rounded-2xl shadow-xl w-full max-w-lg max-h-[90vh] 
                    overflow-hidden flex flex-col mx-4"
                 role="dialog"
                 aria-modal="true"
                 aria-labelledby="modal-title"
             >
                 {/* Header */}
-                <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200">
-                    <h2 id="modal-title" className="text-xl font-semibold text-gray-900">
+                <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200 dark:border-gray-700">
+                    <h2 id="modal-title" className="text-xl font-semibold text-gray-900 dark:text-gray-100">
                         {medicine ? 'Edit Medicine' : 'Add Medicine'}
                     </h2>
                     <button
                         onClick={onClose}
-                        className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 
-                       rounded-lg transition-colors"
+                        className="p-2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 hover:bg-gray-100 
+                       dark:hover:bg-gray-800 rounded-lg transition-colors"
                         aria-label="Close modal"
                     >
                         <X size={20} />
@@ -180,7 +268,7 @@ export function MedicineModal({ isOpen, medicine, onClose, onSave }: MedicineMod
                     <div className="px-6 py-4 space-y-4">
                         {/* Medicine Name */}
                         <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-1">
+                            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                                 Medicine Name <span className="text-red-500">*</span>
                             </label>
                             <input
@@ -188,8 +276,9 @@ export function MedicineModal({ isOpen, medicine, onClose, onSave }: MedicineMod
                                 type="text"
                                 value={formData.name}
                                 onChange={(e) => updateField('name', e.target.value)}
-                                className={`w-full px-3 py-2 rounded-lg border ${errors.name ? 'border-red-300' : 'border-gray-200'}
-                           focus:border-medical-blue focus:ring-2 focus:ring-medical-blue/20`}
+                                className={`w-full px-3 py-2 rounded-lg border ${errors.name ? 'border-red-300' : 'border-gray-200 dark:border-gray-600'}
+                             bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100
+                             focus:border-medical-blue focus:ring-2 focus:ring-medical-blue/20`}
                                 placeholder="e.g., Paracetamol 500mg"
                             />
                             {errors.name && <p className="text-red-500 text-sm mt-1">{errors.name}</p>}
@@ -198,38 +287,41 @@ export function MedicineModal({ isOpen, medicine, onClose, onSave }: MedicineMod
                         {/* Brand & Salt */}
                         <div className="grid grid-cols-2 gap-4">
                             <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-1">Brand</label>
+                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Brand</label>
                                 <input
                                     type="text"
                                     value={formData.brand}
                                     onChange={(e) => updateField('brand', e.target.value)}
-                                    className="w-full px-3 py-2 rounded-lg border border-gray-200
-                             focus:border-medical-blue focus:ring-2 focus:ring-medical-blue/20"
+                                    className="w-full px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-600
+                                             bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100
+                                             focus:border-medical-blue focus:ring-2 focus:ring-medical-blue/20"
                                     placeholder="e.g., Crocin"
                                 />
                             </div>
                             <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-1">Salt/Composition</label>
+                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Salt/Composition</label>
                                 <input
                                     type="text"
                                     value={formData.salt}
                                     onChange={(e) => updateField('salt', e.target.value)}
-                                    className="w-full px-3 py-2 rounded-lg border border-gray-200
-                             focus:border-medical-blue focus:ring-2 focus:ring-medical-blue/20"
+                                    className="w-full px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-600
+                                             bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100
+                                             focus:border-medical-blue focus:ring-2 focus:ring-medical-blue/20"
                                     placeholder="e.g., Paracetamol"
                                 />
                             </div>
                         </div>
 
-                        {/* Category & Quantity */}
+                        {/* Category & Unit Price */}
                         <div className="grid grid-cols-2 gap-4">
                             <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-1">Category</label>
+                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Category</label>
                                 <select
                                     value={formData.category}
                                     onChange={(e) => updateField('category', e.target.value as MedicineCategory)}
-                                    className="w-full px-3 py-2 rounded-lg border border-gray-200
-                             focus:border-medical-blue focus:ring-2 focus:ring-medical-blue/20 cursor-pointer"
+                                    className="w-full px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-600
+                                             bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100
+                                             focus:border-medical-blue focus:ring-2 focus:ring-medical-blue/20"
                                 >
                                     {MEDICINE_CATEGORIES.map(cat => (
                                         <option key={cat} value={cat}>{cat}</option>
@@ -237,101 +329,142 @@ export function MedicineModal({ isOpen, medicine, onClose, onSave }: MedicineMod
                                 </select>
                             </div>
                             <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-1">Quantity</label>
+                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Unit Price (₹)</label>
                                 <input
                                     type="number"
                                     min="0"
-                                    value={formData.quantity}
-                                    onChange={(e) => updateField('quantity', parseInt(e.target.value) || 0)}
-                                    className={`w-full px-3 py-2 rounded-lg border ${errors.quantity ? 'border-red-300' : 'border-gray-200'}
-                             focus:border-medical-blue focus:ring-2 focus:ring-medical-blue/20`}
+                                    step="0.01"
+                                    value={formData.unitPrice}
+                                    onChange={(e) => updateField('unitPrice', parseFloat(e.target.value) || 0)}
+                                    className="w-full px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-600
+                                             bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100
+                                             focus:border-medical-blue focus:ring-2 focus:ring-medical-blue/20"
+                                    placeholder="e.g., 12.50"
                                 />
-                                {errors.quantity && <p className="text-red-500 text-sm mt-1">{errors.quantity}</p>}
                             </div>
-                        </div>
-
-                        {/* Unit Price */}
-                        <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-1">
-                                Unit Price (₹)
-                            </label>
-                            <input
-                                type="number"
-                                min="0"
-                                step="0.01"
-                                value={formData.unitPrice}
-                                onChange={(e) => updateField('unitPrice', parseFloat(e.target.value) || 0)}
-                                className="w-full px-3 py-2 rounded-lg border border-gray-200
-                             focus:border-medical-blue focus:ring-2 focus:ring-medical-blue/20"
-                                placeholder="e.g., 12.50"
-                            />
                         </div>
 
                         {/* Location */}
                         <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-1">
+                            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                                 Location
                             </label>
                             <div className="grid grid-cols-3 gap-3">
-                                <div>
-                                    <input
-                                        type="text"
-                                        value={formData.location.rack}
-                                        onChange={(e) => updateLocation('rack', e.target.value)}
-                                        className={`w-full px-3 py-2 rounded-lg border ${errors.rack ? 'border-red-300' : 'border-gray-200'}
-                               focus:border-medical-blue focus:ring-2 focus:ring-medical-blue/20`}
-                                        placeholder="Rack"
-                                    />
-                                    {errors.rack && <p className="text-red-500 text-xs mt-1">{errors.rack}</p>}
-                                </div>
-                                <div>
-                                    <input
-                                        type="text"
-                                        value={formData.location.shelf}
-                                        onChange={(e) => updateLocation('shelf', e.target.value)}
-                                        className={`w-full px-3 py-2 rounded-lg border ${errors.shelf ? 'border-red-300' : 'border-gray-200'}
-                               focus:border-medical-blue focus:ring-2 focus:ring-medical-blue/20`}
-                                        placeholder="Shelf"
-                                    />
-                                    {errors.shelf && <p className="text-red-500 text-xs mt-1">{errors.shelf}</p>}
-                                </div>
+                                <input
+                                    type="text"
+                                    value={formData.location.rack}
+                                    onChange={(e) => updateLocation('rack', e.target.value)}
+                                    className="w-full px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-600
+                                             bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100
+                                             focus:border-medical-blue focus:ring-2 focus:ring-medical-blue/20"
+                                    placeholder="Rack"
+                                />
+                                <input
+                                    type="text"
+                                    value={formData.location.shelf}
+                                    onChange={(e) => updateLocation('shelf', e.target.value)}
+                                    className="w-full px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-600
+                                             bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100
+                                             focus:border-medical-blue focus:ring-2 focus:ring-medical-blue/20"
+                                    placeholder="Shelf"
+                                />
                                 <input
                                     type="text"
                                     value={formData.location.drawer || ''}
                                     onChange={(e) => updateLocation('drawer', e.target.value)}
-                                    className="w-full px-3 py-2 rounded-lg border border-gray-200
-                             focus:border-medical-blue focus:ring-2 focus:ring-medical-blue/20"
+                                    className="w-full px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-600
+                                             bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100
+                                             focus:border-medical-blue focus:ring-2 focus:ring-medical-blue/20"
                                     placeholder="Drawer (opt)"
                                 />
                             </div>
                         </div>
 
-                        {/* Batch & Expiry */}
-                        <div className="grid grid-cols-2 gap-4">
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-1">Batch Number</label>
-                                <input
-                                    type="text"
-                                    value={formData.batchNumber}
-                                    onChange={(e) => updateField('batchNumber', e.target.value)}
-                                    className="w-full px-3 py-2 rounded-lg border border-gray-200
-                             focus:border-medical-blue focus:ring-2 focus:ring-medical-blue/20"
-                                    placeholder="e.g., BATCH001"
-                                />
-                            </div>
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-1">
-                                    Expiry Date
-                                </label>
-                                <input
-                                    type="date"
-                                    value={formData.expiryDate}
-                                    onChange={(e) => updateField('expiryDate', e.target.value)}
-                                    className={`w-full px-3 py-2 rounded-lg border ${errors.expiryDate ? 'border-red-300' : 'border-gray-200'}
-                             focus:border-medical-blue focus:ring-2 focus:ring-medical-blue/20`}
-                                />
-                                {errors.expiryDate && <p className="text-red-500 text-sm mt-1">{errors.expiryDate}</p>}
-                            </div>
+                        {/* Batches Section */}
+                        <div className="border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden">
+                            <button
+                                type="button"
+                                onClick={() => setShowBatches(!showBatches)}
+                                className="w-full flex items-center justify-between px-4 py-3 bg-gray-50 dark:bg-gray-800 
+                                         hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+                            >
+                                <div className="flex items-center gap-2">
+                                    <Package size={18} className="text-medical-blue" />
+                                    <span className="font-medium text-gray-900 dark:text-gray-100">
+                                        Batches ({formData.batches.length})
+                                    </span>
+                                    <span className="text-sm text-gray-500 dark:text-gray-400">
+                                        Total: {totalQuantity} units
+                                    </span>
+                                </div>
+                                {showBatches ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
+                            </button>
+
+                            {showBatches && (
+                                <div className="p-4 space-y-3 bg-white dark:bg-gray-900">
+                                    {/* Batch Headers */}
+                                    <div className="grid grid-cols-12 gap-2 text-xs font-medium text-gray-500 dark:text-gray-400 px-1">
+                                        <div className="col-span-4">Batch Number</div>
+                                        <div className="col-span-4">Expiry Date</div>
+                                        <div className="col-span-3">Quantity</div>
+                                        <div className="col-span-1"></div>
+                                    </div>
+
+                                    {/* Batch Rows */}
+                                    {formData.batches.map((batch, index) => (
+                                        <div key={batch.id} className="grid grid-cols-12 gap-2 items-center">
+                                            <input
+                                                type="text"
+                                                value={batch.batchNumber}
+                                                onChange={(e) => updateBatch(batch.id, 'batchNumber', e.target.value)}
+                                                className="col-span-4 px-2 py-1.5 text-sm rounded-lg border border-gray-200 dark:border-gray-600
+                                                         bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100
+                                                         focus:border-medical-blue focus:ring-1 focus:ring-medical-blue/20"
+                                                placeholder={`Batch ${index + 1}`}
+                                            />
+                                            <input
+                                                type="date"
+                                                value={batch.expiryDate}
+                                                onChange={(e) => updateBatch(batch.id, 'expiryDate', e.target.value)}
+                                                className="col-span-4 px-2 py-1.5 text-sm rounded-lg border border-gray-200 dark:border-gray-600
+                                                         bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100
+                                                         focus:border-medical-blue focus:ring-1 focus:ring-medical-blue/20"
+                                            />
+                                            <input
+                                                type="number"
+                                                min="0"
+                                                value={batch.quantity}
+                                                onChange={(e) => updateBatch(batch.id, 'quantity', parseInt(e.target.value) || 0)}
+                                                className="col-span-3 px-2 py-1.5 text-sm rounded-lg border border-gray-200 dark:border-gray-600
+                                                         bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100
+                                                         focus:border-medical-blue focus:ring-1 focus:ring-medical-blue/20"
+                                                placeholder="Qty"
+                                            />
+                                            <button
+                                                type="button"
+                                                onClick={() => removeBatch(batch.id)}
+                                                disabled={formData.batches.length === 1}
+                                                className="col-span-1 p-1.5 text-gray-400 hover:text-red-500 disabled:opacity-30 
+                                                         disabled:cursor-not-allowed transition-colors"
+                                                title={formData.batches.length === 1 ? 'At least one batch required' : 'Remove batch'}
+                                            >
+                                                <Trash2 size={16} />
+                                            </button>
+                                        </div>
+                                    ))}
+
+                                    {/* Add Batch Button */}
+                                    <button
+                                        type="button"
+                                        onClick={addBatch}
+                                        className="flex items-center gap-1.5 px-3 py-1.5 text-sm text-medical-blue 
+                                                 hover:bg-medical-blue/10 rounded-lg transition-colors"
+                                    >
+                                        <Plus size={16} />
+                                        Add Batch
+                                    </button>
+                                </div>
+                            )}
                         </div>
 
                         {/* Audit History (Edit mode only) */}
@@ -340,34 +473,36 @@ export function MedicineModal({ isOpen, medicine, onClose, onSave }: MedicineMod
                                 <button
                                     type="button"
                                     onClick={() => setShowAudit(!showAudit)}
-                                    className="flex items-center gap-2 text-sm text-gray-600 hover:text-gray-800"
+                                    className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400 
+                                             hover:text-gray-900 dark:hover:text-gray-200"
                                 >
                                     <Clock size={16} />
-                                    <span>Audit History ({medicine.auditHistory.length})</span>
-                                    {showAudit ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+                                    Audit History ({medicine.auditHistory.length})
+                                    {showAudit ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
                                 </button>
 
                                 {showAudit && (
-                                    <div className="mt-2 max-h-40 overflow-y-auto bg-gray-50 rounded-lg p-3 space-y-2">
+                                    <div className="mt-2 max-h-40 overflow-y-auto border border-gray-200 dark:border-gray-700 
+                                                  rounded-lg p-3 space-y-2">
                                         {medicine.auditHistory.slice().reverse().map(entry => (
-                                            <div key={entry.id} className="text-sm border-b border-gray-200 pb-2 last:border-0">
-                                                <div className="flex justify-between text-gray-500">
-                                                    <span className="font-medium capitalize">
+                                            <div key={entry.id} className="text-xs space-y-0.5">
+                                                <div className="flex items-center gap-2">
+                                                    <span className="font-medium text-gray-900 dark:text-gray-100 capitalize">
                                                         {entry.action.replace('_', ' ')}
                                                     </span>
-                                                    <span>{formatAuditTime(entry.timestamp)}</span>
+                                                    <span className="text-gray-400 dark:text-gray-500">
+                                                        {formatAuditTime(entry.timestamp)}
+                                                    </span>
                                                 </div>
-                                                {entry.changes && entry.changes.length > 0 && (
-                                                    <ul className="mt-1 text-xs text-gray-600">
-                                                        {entry.changes.map((change, idx) => (
-                                                            <li key={idx}>
-                                                                {change.field}: {String(change.oldValue)} → {String(change.newValue)}
-                                                            </li>
-                                                        ))}
-                                                    </ul>
-                                                )}
+                                                {entry.changes && entry.changes.map((change, i) => (
+                                                    <div key={i} className="text-gray-500 dark:text-gray-400 pl-2">
+                                                        {change.field}: {String(change.oldValue)} → {String(change.newValue)}
+                                                    </div>
+                                                ))}
                                                 {entry.note && (
-                                                    <p className="mt-1 text-xs text-gray-500 italic">{entry.note}</p>
+                                                    <div className="text-gray-500 dark:text-gray-400 pl-2 italic">
+                                                        {entry.note}
+                                                    </div>
                                                 )}
                                             </div>
                                         ))}
@@ -378,22 +513,30 @@ export function MedicineModal({ isOpen, medicine, onClose, onSave }: MedicineMod
                     </div>
 
                     {/* Footer */}
-                    <div className="flex justify-end gap-3 px-6 py-4 border-t border-gray-200 bg-gray-50">
+                    <div className="flex gap-3 px-6 py-4 border-t border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800">
                         <button
                             type="button"
                             onClick={onClose}
-                            className="px-4 py-2 text-gray-700 hover:bg-gray-200 rounded-lg transition-colors"
-                            disabled={loading}
+                            className="flex-1 py-2 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300
+                           rounded-lg font-medium hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
                         >
                             Cancel
                         </button>
                         <button
                             type="submit"
                             disabled={loading}
-                            className="px-6 py-2 bg-medical-blue text-white rounded-lg hover:bg-medical-blue-dark
-                         transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                            className="flex-1 py-2 bg-medical-blue text-white rounded-lg font-medium
+                           hover:bg-medical-blue-dark disabled:opacity-60 disabled:cursor-not-allowed
+                           transition-colors flex items-center justify-center gap-2"
                         >
-                            {loading ? 'Saving...' : (medicine ? 'Save Changes' : 'Add Medicine')}
+                            {loading ? (
+                                <>
+                                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                                    Saving...
+                                </>
+                            ) : (
+                                'Save Changes'
+                            )}
                         </button>
                     </div>
                 </form>

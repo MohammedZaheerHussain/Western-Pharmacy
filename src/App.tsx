@@ -1,5 +1,5 @@
 /**
- * Western Pharmacy - Medicine Inventory Management App
+ * Westorn Pharmacy - Medicine Inventory Management App
  * Main application with Inventory/Billing views and Dark Mode
  */
 
@@ -20,6 +20,7 @@ import {
     LocationModal,
     BillingPanel
 } from './components';
+import { InstallButton, InstallSuccessToast } from './components/InstallButton';
 import { Plus, Pill, Package, Receipt, Sun, Moon } from 'lucide-react';
 
 type ViewMode = 'inventory' | 'billing';
@@ -84,14 +85,11 @@ function App() {
         open: false,
         medicine: null
     });
-    const [deleteModal, setDeleteModal] = useState<{ open: boolean; medicine: Medicine | null; bulk: boolean }>({
-        open: false,
-        medicine: null,
-        bulk: false
-    });
-    const [locationModal, setLocationModal] = useState<Medicine | null>(null);
+    const [deleteModal, setDeleteModal] = useState<{ open: boolean; medicine: Medicine | null; bulk: boolean }>({ open: false, medicine: null, bulk: false });
     const [highlightedId, setHighlightedId] = useState<string | null>(null);
+    const [locationModal, setLocationModal] = useState<Medicine | null>(null);
     const [actionLoading, setActionLoading] = useState(false);
+    const [showInstallToast, setShowInstallToast] = useState(false);
 
     // Apply theme on mount and changes
     useEffect(() => {
@@ -245,7 +243,7 @@ function App() {
                                 <Pill className="text-white" size={24} />
                             </div>
                             <div>
-                                <h1 className="text-xl font-bold text-gray-900 dark:text-gray-100">Western Pharmacy</h1>
+                                <h1 className="text-xl font-bold text-gray-900 dark:text-gray-100">Westorn Pharmacy</h1>
                                 <p className="text-sm text-gray-500 dark:text-gray-400">Medicine Inventory</p>
                             </div>
                         </div>
@@ -265,6 +263,9 @@ function App() {
                                     <Moon size={20} />
                                 )}
                             </button>
+
+                            {/* PWA Install Button */}
+                            <InstallButton onInstallSuccess={() => setShowInstallToast(true)} />
 
                             {/* View Toggle */}
                             <div className="flex bg-gray-100 dark:bg-gray-700 rounded-lg p-1">
@@ -370,6 +371,8 @@ function App() {
                         subtotal={billing.subtotal}
                         discountAmount={billing.discountAmount}
                         grandTotal={billing.grandTotal}
+                        customerName={billing.customerName}
+                        customerPhone={billing.customerPhone}
                         bills={billing.bills}
                         error={billing.error}
                         successMessage={billing.successMessage}
@@ -381,6 +384,8 @@ function App() {
                         onUpdateQuantity={billing.updateCartQuantity}
                         onClearCart={billing.clearCart}
                         onSetDiscount={billing.setDiscount}
+                        onSetCustomerName={billing.setCustomerName}
+                        onSetCustomerPhone={billing.setCustomerPhone}
                         onConfirmBill={billing.confirmBill}
                         onLoadBills={billing.loadBills}
                         onExportBills={billing.exportBills}
@@ -418,6 +423,12 @@ function App() {
             <LocationModal
                 medicine={locationModal}
                 onClose={() => setLocationModal(null)}
+            />
+
+            {/* PWA Install Success Toast */}
+            <InstallSuccessToast
+                show={showInstallToast}
+                onClose={() => setShowInstallToast(false)}
             />
         </div>
     );

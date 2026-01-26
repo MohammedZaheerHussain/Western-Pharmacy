@@ -21,6 +21,12 @@ interface UseBillingReturn {
     discountAmount: number;
     grandTotal: number;
 
+    // Customer info (optional)
+    customerName: string;
+    customerPhone: string;
+    setCustomerName: (name: string) => void;
+    setCustomerPhone: (phone: string) => void;
+
     // Edit mode state
     editingBill: Bill | null;
     isEditMode: boolean;
@@ -61,6 +67,8 @@ interface UseBillingReturn {
 export function useBilling(): UseBillingReturn {
     const [cart, setCart] = useState<EditableCartItem[]>([]);
     const [discountPercent, setDiscountPercent] = useState(0);
+    const [customerName, setCustomerName] = useState('');
+    const [customerPhone, setCustomerPhone] = useState('');
     const [bills, setBills] = useState<Bill[]>([]);
     const [error, setError] = useState<string | null>(null);
     const [successMessage, setSuccessMessage] = useState<string | null>(null);
@@ -243,6 +251,8 @@ export function useBilling(): UseBillingReturn {
     const clearCart = useCallback(() => {
         setCart([]);
         setDiscountPercent(0);
+        setCustomerName('');
+        setCustomerPhone('');
         setError(null);
         setEditingBill(null);
     }, []);
@@ -253,6 +263,8 @@ export function useBilling(): UseBillingReturn {
     const cancelEdit = useCallback(() => {
         setCart([]);
         setDiscountPercent(0);
+        setCustomerName('');
+        setCustomerPhone('');
         setError(null);
         setEditingBill(null);
     }, []);
@@ -286,6 +298,8 @@ export function useBilling(): UseBillingReturn {
 
         setCart(cartItems);
         setDiscountPercent(bill.discountPercent);
+        setCustomerName(bill.customerName || '');
+        setCustomerPhone(bill.customerPhone || '');
         setEditingBill(bill);
         setError(null);
     }, []);
@@ -320,11 +334,11 @@ export function useBilling(): UseBillingReturn {
             if (isEditMode && editingBill) {
                 // Update existing bill with delta calculations
                 const originalItems = editingBill.items;
-                bill = await updateBill(editingBill.id, billItems, discountPercent, originalItems);
+                bill = await updateBill(editingBill.id, billItems, discountPercent, originalItems, customerName, customerPhone);
                 setSuccessMessage(`Bill ${bill.billNumber} updated successfully!`);
             } else {
                 // Create new bill
-                bill = await createBill(billItems.filter(i => i.quantity > 0), discountPercent);
+                bill = await createBill(billItems.filter(i => i.quantity > 0), discountPercent, customerName, customerPhone);
                 setSuccessMessage(`Bill ${bill.billNumber} created! Total: ₹${bill.grandTotal.toFixed(2)}`);
             }
 
@@ -345,7 +359,7 @@ export function useBilling(): UseBillingReturn {
         } finally {
             setLoading(false);
         }
-    }, [cart, discountPercent, isEditMode, editingBill, clearCart]);
+    }, [cart, discountPercent, customerName, customerPhone, isEditMode, editingBill, clearCart]);
 
     /**
      * Load bill history from storage
@@ -401,6 +415,10 @@ export function useBilling(): UseBillingReturn {
         subtotal,
         discountAmount,
         grandTotal,
+        customerName,
+        customerPhone,
+        setCustomerName,
+        setCustomerPhone,
         editingBill,
         isEditMode,
         addToCart,

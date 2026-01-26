@@ -74,6 +74,63 @@ function generateBillId(): string {
     return `bill_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
 }
 
+/** Generate unique batch ID */
+export function generateBatchId(): string {
+    return `batch_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+}
+
+// ============ BATCH HELPER FUNCTIONS ============
+
+// Batch type is used via Medicine interface
+
+/**
+ * Get total quantity across all batches
+ * Works for both legacy (single batch) and multi-batch medicines
+ */
+export function getTotalQuantity(medicine: Medicine): number {
+    if (medicine.batches && medicine.batches.length > 0) {
+        return medicine.batches.reduce((sum, batch) => sum + batch.quantity, 0);
+    }
+    return medicine.quantity;
+}
+
+/**
+ * Get earliest expiry date across all batches
+ * Returns the soonest expiry for stock rotation (FEFO)
+ */
+export function getEarliestExpiry(medicine: Medicine): string {
+    if (medicine.batches && medicine.batches.length > 0) {
+        const sorted = [...medicine.batches].sort(
+            (a, b) => new Date(a.expiryDate).getTime() - new Date(b.expiryDate).getTime()
+        );
+        return sorted[0]?.expiryDate || medicine.expiryDate;
+    }
+    return medicine.expiryDate;
+}
+
+/**
+ * Check if medicine has multiple batches
+ */
+export function isMultiBatch(medicine: Medicine): boolean {
+    return !!(medicine.batches && medicine.batches.length > 1);
+}
+
+/**
+ * Normalize medicine data - ensures quantity and expiryDate are computed from batches
+ * Call this before saving to keep legacy fields in sync
+ */
+export function normalizeMedicine(medicine: Medicine): Medicine {
+    if (medicine.batches && medicine.batches.length > 0) {
+        return {
+            ...medicine,
+            quantity: getTotalQuantity(medicine),
+            expiryDate: getEarliestExpiry(medicine),
+            batchNumber: medicine.batches.length === 1 ? medicine.batches[0].batchNumber : ''
+        };
+    }
+    return medicine;
+}
+
 /** Create audit entry */
 function createAuditEntry(
     action: AuditEntry['action'],
@@ -110,7 +167,8 @@ export async function addMedicine(
     const db = await getDB();
     const now = new Date().toISOString();
 
-    const newMedicine: Medicine = {
+    // Build base medicine
+    let newMedicine: Medicine = {
         ...medicine,
         unitPrice: medicine.unitPrice || 0,
         id: generateId(),
@@ -118,6 +176,9 @@ export async function addMedicine(
         updatedAt: now,
         auditHistory: [createAuditEntry('created')]
     };
+
+    // Normalize if has batches - compute quantity and earliest expiry
+    newMedicine = normalizeMedicine(newMedicine);
 
     await db.add('medicines', newMedicine);
     return newMedicine;
@@ -186,7 +247,7 @@ export async function updateMedicine(
         )
         : null;
 
-    const updatedMedicine: Medicine = {
+    let updatedMedicine: Medicine = {
         ...existing,
         ...updates,
         updatedAt: new Date().toISOString(),
@@ -194,6 +255,9 @@ export async function updateMedicine(
             ? [...existing.auditHistory, auditEntry]
             : existing.auditHistory
     };
+
+    // Normalize if has batches - keep quantity/expiry in sync
+    updatedMedicine = normalizeMedicine(updatedMedicine);
 
     await db.put('medicines', updatedMedicine);
     return updatedMedicine;
@@ -297,7 +361,9 @@ async function getNextBillNumber(): Promise<string> {
  */
 export async function createBill(
     items: BillItem[],
-    discountPercent: number = 0
+    discountPercent: number = 0,
+    customerName?: string,
+    customerPhone?: string
 ): Promise<Bill> {
     const db = await getDB();
 
@@ -352,6 +418,8 @@ export async function createBill(
     const bill: Bill = {
         id: generateBillId(),
         billNumber,
+        customerName: customerName?.trim() || undefined,
+        customerPhone: customerPhone?.trim() || undefined,
         items,
         subtotal,
         discountPercent: validDiscount,
@@ -374,7 +442,9 @@ export async function updateBill(
     billId: string,
     newItems: BillItem[],
     discountPercent: number = 0,
-    originalItems: BillItem[]
+    originalItems: BillItem[],
+    customerName?: string,
+    customerPhone?: string
 ): Promise<Bill> {
     const db = await getDB();
 
@@ -476,6 +546,8 @@ export async function updateBill(
     // Update the bill record
     const updatedBill: Bill = {
         ...existingBill,
+        customerName: customerName?.trim() || existingBill.customerName,
+        customerPhone: customerPhone?.trim() || existingBill.customerPhone,
         items: activeItems,
         subtotal,
         discountPercent: validDiscount,

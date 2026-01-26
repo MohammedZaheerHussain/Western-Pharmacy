@@ -89,12 +89,28 @@ export function BillReceiptModal({ bill, onClose }: BillReceiptModalProps) {
                     <div ref={receiptRef}>
                         {/* Receipt Header */}
                         <div className="receipt-header text-center mb-6">
-                            <h1 className="text-xl font-bold text-gray-900 dark:text-gray-100">WESTERN PHARMACY</h1>
+                            <h1 className="text-xl font-bold text-gray-900 dark:text-gray-100">WESTORN PHARMACY</h1>
                             <p className="pharmacy-address text-sm text-gray-500 dark:text-gray-400">Udumalaippettai, Tamil Nadu</p>
                             <p className="pharmacy-address text-sm text-gray-500 dark:text-gray-400">Phone: ____________</p>
                             <div className="border-t border-dashed border-gray-300 dark:border-gray-600 my-4" />
-                            <p className="bill-number text-lg font-bold text-gray-900 dark:text-gray-100">{bill.billNumber}</p>
-                            <p className="text-sm text-gray-500 dark:text-gray-400">{formatDate(bill.createdAt)}</p>
+                            <div className="text-left mb-2">
+                                <p className="bill-number text-lg font-bold text-gray-900 dark:text-gray-100">{bill.billNumber}</p>
+                                <p className="text-sm text-gray-500 dark:text-gray-400">{formatDate(bill.createdAt)}</p>
+                                {(bill.customerName || bill.customerPhone) && (
+                                    <div className="mt-2 pt-2 border-t border-dotted border-gray-300 dark:border-gray-600">
+                                        {bill.customerName && (
+                                            <p className="text-sm text-gray-900 dark:text-gray-100">
+                                                <span className="text-gray-500 dark:text-gray-400">Customer:</span> {bill.customerName}
+                                            </p>
+                                        )}
+                                        {bill.customerPhone && (
+                                            <p className="text-sm text-gray-900 dark:text-gray-100">
+                                                <span className="text-gray-500 dark:text-gray-400">Phone:</span> {bill.customerPhone}
+                                            </p>
+                                        )}
+                                    </div>
+                                )}
+                            </div>
                         </div>
 
                         {/* Items Table */}
@@ -143,8 +159,8 @@ export function BillReceiptModal({ bill, onClose }: BillReceiptModalProps) {
                         {/* Footer */}
                         <div className="receipt-footer text-center mt-8 pt-4 border-t border-dashed border-gray-300 dark:border-gray-600">
                             <p className="thank-you font-semibold text-gray-900 dark:text-gray-100">Thank you for your purchase!</p>
-                            <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">Western Pharmacy</p>
-                            <p className="powered-by text-xs text-gray-400 dark:text-gray-500 mt-4">Powered by Western Pharmacy App</p>
+                            <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">Westorn Pharmacy</p>
+                            <p className="powered-by text-xs text-gray-400 dark:text-gray-500 mt-4">Powered by Westorn Pharmacy App</p>
                         </div>
                     </div>
                 </div>

@@ -3,7 +3,7 @@
  * Features: New Bill, edit mode, low-stock warnings, confirm dialogs
  */
 
-import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { Medicine, CartItem, Bill } from '../types/medicine';
 import {
     Search, Plus, Minus, Trash2, ShoppingCart, Receipt, History,
@@ -212,6 +212,8 @@ interface BillingPanelProps {
     subtotal: number;
     discountAmount: number;
     grandTotal: number;
+    customerName: string;
+    customerPhone: string;
     bills: Bill[];
     error: string | null;
     successMessage: string | null;
@@ -223,6 +225,8 @@ interface BillingPanelProps {
     onUpdateQuantity: (medicineId: string, quantity: number) => void;
     onClearCart: () => void;
     onSetDiscount: (percent: number) => void;
+    onSetCustomerName: (name: string) => void;
+    onSetCustomerPhone: (phone: string) => void;
     onConfirmBill: () => Promise<Bill>;
     onLoadBills: () => Promise<void>;
     onExportBills: () => void;
@@ -233,9 +237,6 @@ interface BillingPanelProps {
     onCancelEdit: () => void;
 }
 
-// Need React import for memo
-import React from 'react';
-
 export function BillingPanel({
     medicines,
     cart,
@@ -243,6 +244,8 @@ export function BillingPanel({
     subtotal,
     discountAmount,
     grandTotal,
+    customerName,
+    customerPhone,
     bills,
     error,
     successMessage,
@@ -254,6 +257,8 @@ export function BillingPanel({
     onUpdateQuantity,
     onClearCart,
     onSetDiscount,
+    onSetCustomerName,
+    onSetCustomerPhone,
     onConfirmBill,
     onLoadBills,
     onExportBills,
@@ -511,6 +516,31 @@ export function BillingPanel({
 
                 {/* Cart Items */}
                 <div className="flex-1 overflow-y-auto p-4 space-y-3">
+                    {/* Customer Details (Optional) */}
+                    {(cart.length > 0 || isEditMode) && (
+                        <div className="mb-4 space-y-3">
+                            <h3 className="text-sm font-medium text-gray-700 dark:text-gray-300">Customer Details (Optional)</h3>
+                            <div className="grid grid-cols-2 gap-3">
+                                <input
+                                    type="text"
+                                    value={customerName}
+                                    onChange={(e) => onSetCustomerName(e.target.value)}
+                                    placeholder="Customer Name"
+                                    className="w-full px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-600 
+                                             bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 text-sm"
+                                />
+                                <input
+                                    type="tel"
+                                    value={customerPhone}
+                                    onChange={(e) => onSetCustomerPhone(e.target.value)}
+                                    placeholder="Phone Number"
+                                    className="w-full px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-600 
+                                             bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 text-sm"
+                                />
+                            </div>
+                        </div>
+                    )}
+
                     {displayCart.length === 0 ? (
                         <div className="text-center text-gray-500 dark:text-gray-400 py-8">
                             <ShoppingCart size={40} className="mx-auto mb-2 text-gray-300 dark:text-gray-600" />

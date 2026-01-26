@@ -1,4 +1,4 @@
-# Western Pharmacy - Medicine Inventory Management
+# Westorn Pharmacy - Medicine Inventory Management
 
 A simple, fast, and clean medicine inventory management system designed for small pharmacies and clinics.
 
@@ -14,6 +14,7 @@ A simple, fast, and clean medicine inventory management system designed for smal
 - 📥 **CSV Import/Export** - Easy data migration with validation
 - 📜 **Audit History** - Track all changes to inventory
 - 💾 **Offline First** - Works without internet using IndexedDB
+- 🖥️ **Desktop App (PWA)** - Install as native desktop app with one click
 - 📱 **Responsive** - Works on desktop, tablet, and mobile
 - 🧾 **Billing** - Create bills, edit incorrect bills, print receipts, view history
 - ✏️ **Bill Editing** - Fix qty errors, items restock automatically
@@ -61,6 +62,18 @@ npm run preview
 - Safari 14+
 - Edge 90+
 - Mobile browsers (iOS Safari, Chrome for Android)
+
+## Install as Desktop App (PWA)
+
+Westorn Pharmacy is a Progressive Web App! Install it for a native desktop experience:
+
+1. **Open the app** in Chrome or Edge on your desktop
+2. **Click "Install App"** button in the header (or use browser menu → Install)
+3. **Launch from desktop** - The app appears in your Start Menu/Applications
+4. **Works offline** - All features work without internet after first load
+5. **Own window** - Runs in standalone mode without browser UI
+
+> 💡 After installation, the Install button automatically hides. Data persists locally in the browser's IndexedDB.
 
 ## License
 
