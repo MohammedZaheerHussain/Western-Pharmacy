@@ -9,6 +9,12 @@
   --medical-blue-light: #E6F0FA;
 }
 
+/* Dark mode CSS variables */
+.dark {
+  --medical-blue: #3B9AFF;
+  --medical-blue-light: #1E3A5F;
+}
+
 * {
   box-sizing: border-box;
 }
@@ -18,6 +24,13 @@ body {
   background-color: #F5F5F5;
   color: #1a1a1a;
   min-height: 100vh;
+}
+
+/* Dark mode body */
+.dark body,
+body.dark {
+  background-color: #0f172a;
+  color: #e2e8f0;
 }
 
 /* Custom scrollbar */
@@ -30,13 +43,25 @@ body {
   background: #f1f1f1;
 }
 
+.dark ::-webkit-scrollbar-track {
+  background: #1e293b;
+}
+
 ::-webkit-scrollbar-thumb {
   background: #c1c1c1;
   border-radius: 4px;
 }
 
+.dark ::-webkit-scrollbar-thumb {
+  background: #475569;
+}
+
 ::-webkit-scrollbar-thumb:hover {
   background: #a1a1a1;
+}
+
+.dark ::-webkit-scrollbar-thumb:hover {
+  background: #64748b;
 }
 
 /* Focus styles for accessibility */
@@ -56,10 +81,19 @@ textarea:focus-visible {
   background-color: #F5F5F5;
 }
 
+.dark .sticky-header {
+  background-color: #0f172a;
+}
+
 /* Table row highlight animation */
 @keyframes rowHighlight {
-  0% { background-color: #FEF3C7; }
-  100% { background-color: transparent; }
+  0% {
+    background-color: #FEF3C7;
+  }
+
+  100% {
+    background-color: transparent;
+  }
 }
 
 .row-highlight {
@@ -77,6 +111,10 @@ textarea:focus-visible {
   z-index: 50;
 }
 
+.dark .modal-backdrop {
+  background-color: rgba(0, 0, 0, 0.7);
+}
+
 /* Modal content animation */
 .modal-content {
   animation: modalEnter 0.2s ease-out;
@@ -87,8 +125,73 @@ textarea:focus-visible {
     opacity: 0;
     transform: scale(0.95);
   }
+
   to {
     opacity: 1;
     transform: scale(1);
   }
+}
+
+/* Toast notification */
+.toast {
+  position: fixed;
+  bottom: 1.5rem;
+  right: 1.5rem;
+  z-index: 60;
+  animation: toastEnter 0.3s ease-out;
+}
+
+@keyframes toastEnter {
+  from {
+    opacity: 0;
+    transform: translateY(1rem);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Low stock warning badge */
+.low-stock-warning {
+  border: 2px solid #f59e0b;
+  background-color: #fef3c7;
+}
+
+.dark .low-stock-warning {
+  border-color: #d97706;
+  background-color: #78350f;
+}
+
+/* Confirm dialog overlay */
+.confirm-overlay {
+  position: fixed;
+  inset: 0;
+  background-color: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 55;
+}
+
+.dark .confirm-overlay {
+  background-color: rgba(0, 0, 0, 0.7);
+}
+
+/* PWA Install Toast Animation */
+@keyframes slide-up {
+  from {
+    transform: translateY(100%);
+    opacity: 0;
+  }
+
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+.animate-slide-up {
+  animation: slide-up 0.3s ease-out;
 }

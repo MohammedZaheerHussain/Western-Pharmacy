@@ -1,0 +1,191 @@
+/**
+ * Print styles for Bill Receipt
+ * Optimized for thermal printers and small-format paper
+ */
+
+@media print {
+
+    /* Hide all non-print elements */
+    body>*:not(.print-container),
+    .modal-backdrop,
+    .no-print,
+    button,
+    nav,
+    header,
+    footer,
+    .toast {
+        display: none !important;
+    }
+
+    /* Reset page */
+    @page {
+        size: 80mm auto;
+        /* Standard thermal receipt width */
+        margin: 5mm;
+    }
+
+    /* Body reset */
+    body {
+        background: white !important;
+        color: black !important;
+        font-family: 'Courier New', Courier, monospace !important;
+        font-size: 12pt !important;
+        line-height: 1.4 !important;
+        margin: 0 !important;
+        padding: 0 !important;
+    }
+
+    /* Print container */
+    .print-container {
+        display: block !important;
+        width: 100% !important;
+        max-width: 80mm !important;
+        margin: 0 auto !important;
+        padding: 0 !important;
+        background: white !important;
+    }
+
+    /* Receipt header */
+    .receipt-header {
+        text-align: center !important;
+        border-bottom: 2px dashed #000 !important;
+        padding-bottom: 10px !important;
+        margin-bottom: 10px !important;
+    }
+
+    .receipt-header h1 {
+        font-size: 18pt !important;
+        font-weight: bold !important;
+        margin: 0 0 5px 0 !important;
+        text-transform: uppercase !important;
+    }
+
+    .receipt-header .pharmacy-address {
+        font-size: 10pt !important;
+        color: #333 !important;
+        margin: 2px 0 !important;
+    }
+
+    /* Bill info */
+    .bill-info {
+        display: flex !important;
+        justify-content: space-between !important;
+        border-bottom: 1px dashed #000 !important;
+        padding: 8px 0 !important;
+        margin-bottom: 10px !important;
+        font-size: 11pt !important;
+    }
+
+    .bill-number {
+        font-size: 14pt !important;
+        font-weight: bold !important;
+    }
+
+    /* Items table */
+    .receipt-table {
+        width: 100% !important;
+        border-collapse: collapse !important;
+        font-size: 10pt !important;
+        margin-bottom: 10px !important;
+    }
+
+    .receipt-table th {
+        text-align: left !important;
+        border-bottom: 1px solid #000 !important;
+        padding: 4px 2px !important;
+        font-weight: bold !important;
+        font-size: 9pt !important;
+    }
+
+    .receipt-table th:last-child,
+    .receipt-table td:last-child {
+        text-align: right !important;
+    }
+
+    .receipt-table td {
+        padding: 4px 2px !important;
+        border-bottom: 1px dotted #ccc !important;
+        vertical-align: top !important;
+    }
+
+    .receipt-table .item-name {
+        font-weight: 500 !important;
+        max-width: 120px !important;
+        word-wrap: break-word !important;
+    }
+
+    .receipt-table .item-qty,
+    .receipt-table .item-price {
+        text-align: center !important;
+    }
+
+    .receipt-table .item-total {
+        text-align: right !important;
+        font-weight: 500 !important;
+    }
+
+    /* Summary section */
+    .receipt-summary {
+        border-top: 2px solid #000 !important;
+        padding-top: 8px !important;
+        margin-top: 5px !important;
+    }
+
+    .summary-row {
+        display: flex !important;
+        justify-content: space-between !important;
+        padding: 3px 0 !important;
+        font-size: 11pt !important;
+    }
+
+    .summary-row.discount {
+        color: #333 !important;
+    }
+
+    .summary-row.grand-total {
+        font-size: 14pt !important;
+        font-weight: bold !important;
+        border-top: 2px double #000 !important;
+        padding-top: 8px !important;
+        margin-top: 5px !important;
+    }
+
+    /* Footer */
+    .receipt-footer {
+        text-align: center !important;
+        border-top: 2px dashed #000 !important;
+        padding-top: 10px !important;
+        margin-top: 15px !important;
+        font-size: 10pt !important;
+    }
+
+    .receipt-footer .thank-you {
+        font-weight: bold !important;
+        margin-bottom: 5px !important;
+    }
+
+    .receipt-footer .powered-by {
+        font-size: 8pt !important;
+        color: #666 !important;
+        margin-top: 10px !important;
+    }
+
+    /* Prevent page breaks inside elements */
+    .receipt-table tr,
+    .receipt-summary,
+    .receipt-header {
+        page-break-inside: avoid !important;
+    }
+
+    /* Remove shadows and decorations */
+    * {
+        box-shadow: none !important;
+        text-shadow: none !important;
+    }
+
+    /* Links appear as plain text */
+    a {
+        text-decoration: none !important;
+        color: black !important;
+    }
+}
