@@ -282,6 +282,6 @@ export function useMedicines() {
         importMedicines,
         exportCSV,
         parseCSV,
-        refresh
+        refreshMedicines: refresh
     };
 }

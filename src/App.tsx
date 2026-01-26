@@ -1,8 +1,9 @@
 // Western Pharmacy - Medicine Inventory Management App
-// Main application component bringing together all features
+// Main application component with Inventory & Billing views
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { useMedicines } from './hooks/useMedicines';
+import { useBilling } from './hooks/useBilling';
 import { Medicine, SortField, MedicineLocation, StockStatus } from './types/medicine';
 import { MedicineFormData } from './components/MedicineModal';
 import {
@@ -14,9 +15,12 @@ import {
     DeleteConfirmModal,
     BulkActionsBar,
     ImportExportBar,
-    LocationModal
+    LocationModal,
+    BillingPanel
 } from './components';
-import { Plus, Pill } from 'lucide-react';
+import { Plus, Pill, Package, Receipt } from 'lucide-react';
+
+type ViewMode = 'inventory' | 'billing';
 
 function App() {
     const {
@@ -38,8 +42,14 @@ function App() {
         bulkUpdateLocation,
         importMedicines,
         exportCSV,
-        parseCSV
+        parseCSV,
+        refreshMedicines
     } = useMedicines();
+
+    const billing = useBilling();
+
+    // View mode state
+    const [viewMode, setViewMode] = useState<ViewMode>('inventory');
 
     // Modal states
     const [medicineModal, setMedicineModal] = useState<{ open: boolean; medicine: Medicine | null }>({
@@ -54,6 +64,23 @@ function App() {
     const [locationModal, setLocationModal] = useState<Medicine | null>(null);
     const [highlightedId, setHighlightedId] = useState<string | null>(null);
     const [actionLoading, setActionLoading] = useState(false);
+
+    // Keyboard shortcut: 'B' to toggle billing
+    useEffect(() => {
+        function handleKeyDown(e: KeyboardEvent) {
+            // Ignore if typing in input/textarea
+            const target = e.target as HTMLElement;
+            if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.tagName === 'SELECT') {
+                return;
+            }
+
+            if (e.key.toLowerCase() === 'b') {
+                setViewMode(prev => prev === 'billing' ? 'inventory' : 'billing');
+            }
+        }
+        window.addEventListener('keydown', handleKeyDown);
+        return () => window.removeEventListener('keydown', handleKeyDown);
+    }, []);
 
     // Handle sort change
     const handleSort = useCallback((field: SortField) => {
@@ -122,6 +149,11 @@ function App() {
         }));
     }, [setFilters]);
 
+    // Handle bill completion - refresh inventory
+    const handleBillComplete = useCallback(() => {
+        refreshMedicines();
+    }, [refreshMedicines]);
+
     if (loading) {
         return (
             <div className="min-h-screen flex items-center justify-center bg-gray-50">
@@ -150,68 +182,125 @@ function App() {
                         </div>
 
                         <div className="flex items-center gap-3">
-                            <ImportExportBar
-                                onExport={exportCSV}
-                                onImport={importMedicines}
-                                parseCSV={parseCSV}
-                            />
-                            <button
-                                onClick={() => setMedicineModal({ open: true, medicine: null })}
-                                className="flex items-center gap-2 px-4 py-2 bg-medical-blue text-white 
-                           rounded-lg hover:bg-medical-blue-dark transition-colors font-medium"
-                            >
-                                <Plus size={20} />
-                                <span className="hidden sm:inline">Add Medicine</span>
-                            </button>
+                            {/* View Toggle */}
+                            <div className="flex bg-gray-100 rounded-lg p-1">
+                                <button
+                                    onClick={() => setViewMode('inventory')}
+                                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium transition-colors
+                                        ${viewMode === 'inventory'
+                                            ? 'bg-white text-gray-900 shadow-sm'
+                                            : 'text-gray-600 hover:text-gray-900'}`}
+                                >
+                                    <Package size={16} />
+                                    <span className="hidden sm:inline">Inventory</span>
+                                </button>
+                                <button
+                                    onClick={() => setViewMode('billing')}
+                                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium transition-colors
+                                        ${viewMode === 'billing'
+                                            ? 'bg-white text-gray-900 shadow-sm'
+                                            : 'text-gray-600 hover:text-gray-900'}`}
+                                >
+                                    <Receipt size={16} />
+                                    <span className="hidden sm:inline">Billing</span>
+                                </button>
+                            </div>
+
+                            {viewMode === 'inventory' && (
+                                <>
+                                    <ImportExportBar
+                                        onExport={exportCSV}
+                                        onImport={importMedicines}
+                                        parseCSV={parseCSV}
+                                    />
+                                    <button
+                                        onClick={() => setMedicineModal({ open: true, medicine: null })}
+                                        className="flex items-center gap-2 px-4 py-2 bg-medical-blue text-white 
+                                   rounded-lg hover:bg-medical-blue-dark transition-colors font-medium"
+                                    >
+                                        <Plus size={20} />
+                                        <span className="hidden sm:inline">Add Medicine</span>
+                                    </button>
+                                </>
+                            )}
                         </div>
                     </div>
 
-                    {/* Search Bar */}
-                    <SearchBar
-                        value={filters.search}
-                        onChange={(search) => setFilters(prev => ({ ...prev, search }))}
-                    />
+                    {/* Search Bar - only in inventory mode */}
+                    {viewMode === 'inventory' && (
+                        <SearchBar
+                            value={filters.search}
+                            onChange={(search) => setFilters(prev => ({ ...prev, search }))}
+                        />
+                    )}
                 </div>
             </header>
 
             {/* Main Content */}
             <main className="max-w-7xl mx-auto px-4 sm:px-6 py-6 space-y-4">
-                {/* Alerts */}
-                <AlertBanner
-                    lowStockCount={alerts.lowStock}
-                    expiringCount={alerts.expiringSoon}
-                    outOfStockCount={alerts.outOfStock}
-                    onFilter={handleAlertFilter}
-                    currentFilter={filters.stockStatus}
-                />
+                {viewMode === 'inventory' ? (
+                    <>
+                        {/* Alerts */}
+                        <AlertBanner
+                            lowStockCount={alerts.lowStock}
+                            expiringCount={alerts.expiringSoon}
+                            outOfStockCount={alerts.outOfStock}
+                            onFilter={handleAlertFilter}
+                            currentFilter={filters.stockStatus}
+                        />
 
-                {/* Filters */}
-                <FilterBar
-                    filters={filters}
-                    onChange={setFilters}
-                />
+                        {/* Filters */}
+                        <FilterBar
+                            filters={filters}
+                            onChange={setFilters}
+                        />
 
-                {/* Medicine Table */}
-                <MedicineTable
-                    medicines={medicines}
-                    sort={sort}
-                    onSort={handleSort}
-                    selectedIds={selectedIds}
-                    onToggleSelect={toggleSelect}
-                    onSelectAll={handleSelectAll}
-                    onEdit={(medicine) => setMedicineModal({ open: true, medicine })}
-                    onDelete={(medicine) => setDeleteModal({ open: true, medicine, bulk: false })}
-                    onLocate={handleLocate}
-                    highlightedId={highlightedId}
-                />
+                        {/* Medicine Table */}
+                        <MedicineTable
+                            medicines={medicines}
+                            sort={sort}
+                            onSort={handleSort}
+                            selectedIds={selectedIds}
+                            onToggleSelect={toggleSelect}
+                            onSelectAll={handleSelectAll}
+                            onEdit={(medicine) => setMedicineModal({ open: true, medicine })}
+                            onDelete={(medicine) => setDeleteModal({ open: true, medicine, bulk: false })}
+                            onLocate={handleLocate}
+                            highlightedId={highlightedId}
+                        />
 
-                {/* Bulk Actions Bar */}
-                <BulkActionsBar
-                    selectedCount={selectedIds.size}
-                    onDelete={() => setDeleteModal({ open: true, medicine: null, bulk: true })}
-                    onUpdateLocation={handleBulkLocationUpdate}
-                    onClear={clearSelection}
-                />
+                        {/* Bulk Actions Bar */}
+                        <BulkActionsBar
+                            selectedCount={selectedIds.size}
+                            onDelete={() => setDeleteModal({ open: true, medicine: null, bulk: true })}
+                            onUpdateLocation={handleBulkLocationUpdate}
+                            onClear={clearSelection}
+                        />
+                    </>
+                ) : (
+                    /* Billing View */
+                    <BillingPanel
+                        medicines={medicines}
+                        cart={billing.cart}
+                        discountPercent={billing.discountPercent}
+                        subtotal={billing.subtotal}
+                        discountAmount={billing.discountAmount}
+                        grandTotal={billing.grandTotal}
+                        bills={billing.bills}
+                        error={billing.error}
+                        loading={billing.loading}
+                        onAddToCart={billing.addToCart}
+                        onRemoveFromCart={billing.removeFromCart}
+                        onUpdateQuantity={billing.updateCartQuantity}
+                        onClearCart={billing.clearCart}
+                        onSetDiscount={billing.setDiscount}
+                        onConfirmBill={billing.confirmBill}
+                        onLoadBills={billing.loadBills}
+                        onExportBills={billing.exportBills}
+                        onClearError={billing.clearError}
+                        onBillComplete={handleBillComplete}
+                    />
+                )}
             </main>
 
             {/* Modals */}

@@ -1,9 +1,9 @@
-// Medicine type definitions with audit history support
+// Medicine and Billing type definitions with audit history support
 
 export interface AuditEntry {
     id: string;
     timestamp: string;
-    action: 'created' | 'updated' | 'quantity_changed';
+    action: 'created' | 'updated' | 'quantity_changed' | 'sold';
     changes?: {
         field: string;
         oldValue: string | number;
@@ -25,6 +25,7 @@ export interface Medicine {
     salt: string;
     category: MedicineCategory;
     quantity: number;
+    unitPrice: number; // Price in INR
     location: MedicineLocation;
     batchNumber: string;
     expiryDate: string;
@@ -82,9 +83,39 @@ export interface CSVImportRow {
     drawer?: string;
     batchNumber: string;
     expiryDate: string;
+    unitPrice?: string;
 }
 
 export interface CSVImportResult {
     valid: Medicine[];
     invalid: { row: number; data: Partial<CSVImportRow>; errors: string[] }[];
+}
+
+// ============ BILLING TYPES ============
+
+/** Single item in a bill */
+export interface BillItem {
+    medicineId: string;
+    medicineName: string;
+    brand: string;
+    quantity: number;
+    unitPrice: number;
+    total: number;
+}
+
+/** Complete bill record */
+export interface Bill {
+    id: string;
+    billNumber: string; // Format: "BILL-0001"
+    items: BillItem[];
+    subtotal: number;
+    discountPercent: number;
+    discountAmount: number;
+    grandTotal: number;
+    createdAt: string;
+}
+
+/** Cart item for billing (extends BillItem with available stock) */
+export interface CartItem extends BillItem {
+    availableStock: number;
 }

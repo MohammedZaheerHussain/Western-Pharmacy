@@ -18,6 +18,7 @@ export interface MedicineFormData {
     salt: string;
     category: MedicineCategory;
     quantity: number;
+    unitPrice: number;
     location: MedicineLocation;
     batchNumber: string;
     expiryDate: string;
@@ -29,6 +30,7 @@ const initialFormData: MedicineFormData = {
     salt: '',
     category: 'Tablet',
     quantity: 0,
+    unitPrice: 0,
     location: { rack: '', shelf: '', drawer: '' },
     batchNumber: '',
     expiryDate: ''
@@ -52,6 +54,7 @@ export function MedicineModal({ isOpen, medicine, onClose, onSave }: MedicineMod
                     salt: medicine.salt,
                     category: medicine.category,
                     quantity: medicine.quantity,
+                    unitPrice: medicine.unitPrice || 0,
                     location: { ...medicine.location },
                     batchNumber: medicine.batchNumber,
                     expiryDate: medicine.expiryDate
@@ -245,6 +248,23 @@ export function MedicineModal({ isOpen, medicine, onClose, onSave }: MedicineMod
                                 />
                                 {errors.quantity && <p className="text-red-500 text-sm mt-1">{errors.quantity}</p>}
                             </div>
+                        </div>
+
+                        {/* Unit Price */}
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">
+                                Unit Price (₹)
+                            </label>
+                            <input
+                                type="number"
+                                min="0"
+                                step="0.01"
+                                value={formData.unitPrice}
+                                onChange={(e) => updateField('unitPrice', parseFloat(e.target.value) || 0)}
+                                className="w-full px-3 py-2 rounded-lg border border-gray-200
+                             focus:border-medical-blue focus:ring-2 focus:ring-medical-blue/20"
+                                placeholder="e.g., 12.50"
+                            />
                         </div>
 
                         {/* Location */}

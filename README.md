@@ -15,6 +15,8 @@ A simple, fast, and clean medicine inventory management system designed for smal
 - 📜 **Audit History** - Track all changes to inventory
 - 💾 **Offline First** - Works without internet using IndexedDB
 - 📱 **Responsive** - Works on desktop, tablet, and mobile
+- 🧾 **Billing** - Create bills, deduct stock, print receipts, view history
+- ⌨️ **Keyboard Shortcuts** - Press `B` for billing, `/` to search, `Esc` to close
 
 ## Tech Stack
 
