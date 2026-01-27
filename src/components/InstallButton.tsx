@@ -46,7 +46,7 @@ export function InstallButton({ onInstallSuccess }: InstallButtonProps) {
             className="flex items-center gap-2 px-3 py-2 bg-medical-blue text-white rounded-lg 
                      hover:bg-medical-blue-dark transition-colors font-medium text-sm
                      shadow-sm hover:shadow-md"
-            title="Install Westorn Pharmacy as desktop app"
+            title="Install Weston Pharmacy as desktop app"
             aria-label="Install app for desktop"
         >
             <Download size={18} />

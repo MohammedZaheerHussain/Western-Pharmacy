@@ -10,7 +10,7 @@ export default defineConfig({
       registerType: 'autoUpdate',
       includeAssets: ['favicon.svg', 'icon.svg', 'icon-maskable.svg'],
       manifest: {
-        name: 'Westorn Pharmacy',
+        name: 'Weston Pharmacy',
         short_name: 'WP',
         description: 'Offline medicine inventory and billing for small pharmacies',
         start_url: '/',

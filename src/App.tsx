@@ -1,5 +1,5 @@
 /**
- * Westorn Pharmacy - Medicine Inventory Management App
+ * Weston Pharmacy - Medicine Inventory Management App
  * Main application with Inventory/Billing views and Dark Mode
  */
 
@@ -243,7 +243,7 @@ function App() {
                                 <Pill className="text-white" size={24} />
                             </div>
                             <div>
-                                <h1 className="text-xl font-bold text-gray-900 dark:text-gray-100">Westorn Pharmacy</h1>
+                                <h1 className="text-xl font-bold text-gray-900 dark:text-gray-100">Weston Pharmacy</h1>
                                 <p className="text-sm text-gray-500 dark:text-gray-400">Medicine Inventory</p>
                             </div>
                         </div>
