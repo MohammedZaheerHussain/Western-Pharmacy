@@ -289,6 +289,8 @@ interface BillingPanelProps {
     loading: boolean;
     editingBill: Bill | null;
     isEditMode: boolean;
+    gstEnabled: boolean;
+    gstPercentage: number;
     onAddToCart: (medicine: Medicine, quantity?: number) => void;
     onRemoveFromCart: (medicineId: string) => void;
     onUpdateQuantity: (medicineId: string, quantity: number) => void;
@@ -322,6 +324,8 @@ export function BillingPanel({
     loading,
     editingBill,
     isEditMode,
+    gstEnabled,
+    gstPercentage,
     onAddToCart,
     onRemoveFromCart,
     onUpdateQuantity: _onUpdateQuantity, // Kept for backwards compat, use onUpdateStripLooseQty
@@ -655,10 +659,28 @@ export function BillingPanel({
                             </div>
                         </div>
 
+                        {/* GST (when enabled) */}
+                        {gstEnabled && (
+                            <div className="flex justify-between text-sm">
+                                <span className="text-gray-600 dark:text-gray-400">
+                                    GST ({gstPercentage}%)
+                                </span>
+                                <span className="font-medium text-green-600 dark:text-green-400">
+                                    +{formatCurrency((subtotal - discountAmount) * gstPercentage / 100)}
+                                </span>
+                            </div>
+                        )}
+
                         {/* Grand Total */}
                         <div className="flex justify-between text-lg font-bold pt-2 border-t border-gray-300 dark:border-gray-600">
                             <span className="text-gray-900 dark:text-gray-100">Grand Total</span>
-                            <span className="text-medical-blue">{formatCurrency(grandTotal)}</span>
+                            <span className="text-medical-blue">
+                                {formatCurrency(
+                                    gstEnabled
+                                        ? grandTotal + (subtotal - discountAmount) * gstPercentage / 100
+                                        : grandTotal
+                                )}
+                            </span>
                         </div>
 
                         {/* Confirm Button */}

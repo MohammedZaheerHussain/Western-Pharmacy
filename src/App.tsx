@@ -18,10 +18,13 @@ import {
     BulkActionsBar,
     ImportExportBar,
     LocationModal,
-    BillingPanel
+    BillingPanel,
+    SettingsModal,
+    loadSettings,
+    PharmacySettings
 } from './components';
 import { InstallButton, InstallSuccessToast } from './components/InstallButton';
-import { Plus, Pill, Package, Receipt, Sun, Moon } from 'lucide-react';
+import { Plus, Pill, Package, Receipt, Sun, Moon, Settings } from 'lucide-react';
 
 type ViewMode = 'inventory' | 'billing';
 type Theme = 'light' | 'dark' | 'system';
@@ -90,6 +93,8 @@ function App() {
     const [locationModal, setLocationModal] = useState<Medicine | null>(null);
     const [actionLoading, setActionLoading] = useState(false);
     const [showInstallToast, setShowInstallToast] = useState(false);
+    const [settingsModal, setSettingsModal] = useState(false);
+    const [settings, setSettings] = useState<PharmacySettings>(loadSettings);
 
     // Apply theme on mount and changes
     useEffect(() => {
@@ -249,6 +254,17 @@ function App() {
                         </div>
 
                         <div className="flex items-center gap-3">
+                            {/* Settings Button */}
+                            <button
+                                onClick={() => setSettingsModal(true)}
+                                className="p-2 text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 
+                                         rounded-lg transition-colors"
+                                title="Settings"
+                                aria-label="Settings"
+                            >
+                                <Settings size={20} />
+                            </button>
+
                             {/* Theme Toggle */}
                             <button
                                 onClick={toggleTheme}
@@ -379,6 +395,8 @@ function App() {
                         loading={billing.loading}
                         editingBill={billing.editingBill}
                         isEditMode={billing.isEditMode}
+                        gstEnabled={settings.gstEnabled}
+                        gstPercentage={settings.gstPercentage}
                         onAddToCart={billing.addToCart}
                         onRemoveFromCart={billing.removeFromCart}
                         onUpdateQuantity={billing.updateCartQuantity}
@@ -430,6 +448,14 @@ function App() {
             <InstallSuccessToast
                 show={showInstallToast}
                 onClose={() => setShowInstallToast(false)}
+            />
+
+            {/* Settings Modal */}
+            <SettingsModal
+                isOpen={settingsModal}
+                settings={settings}
+                onClose={() => setSettingsModal(false)}
+                onSave={setSettings}
             />
         </div>
     );

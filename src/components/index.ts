@@ -14,3 +14,7 @@ export { LocationModal } from './LocationModal';
 export { BillingPanel } from './BillingPanel';
 export { BillReceiptModal } from './BillReceiptModal';
 export { BillHistoryModal } from './BillHistoryModal';
+
+// Settings
+export { SettingsModal, loadSettings, saveSettings } from './SettingsModal';
+export type { PharmacySettings } from './SettingsModal';
