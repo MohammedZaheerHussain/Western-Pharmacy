@@ -1,10 +1,12 @@
 // MedicineModal component for Add/Edit medicine
 // Supports multi-batch entry with dynamic batch rows
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { Medicine, MedicineCategory, MEDICINE_CATEGORIES, MedicineLocation, MedicineSchedule, MEDICINE_SCHEDULES } from '../types/medicine';
 import { X, ChevronDown, ChevronUp, Clock, Plus, Trash2, Package } from 'lucide-react';
 import { generateBatchId } from '../services/storage';
+import { MedicineAutocomplete } from './MedicineAutocomplete';
+import { MedicineTemplate } from '../data/medicineDatabase';
 
 interface MedicineModalProps {
     isOpen: boolean;
@@ -204,6 +206,27 @@ export function MedicineModal({ isOpen, medicine, onClose, onSave }: MedicineMod
         }
     };
 
+    // Handle selection from medicine autocomplete
+    const handleAutocompleteSelect = useCallback((template: MedicineTemplate) => {
+        setFormData(prev => ({
+            ...prev,
+            name: template.name,
+            brand: template.brand,
+            salt: template.salt,
+            category: template.category,
+            tabletsPerStrip: template.tabletsPerStrip || (template.category === 'Tablet' ? 10 : 1),
+            unitPrice: template.suggestedPrice || prev.unitPrice,
+            // Update default batch price too
+            batches: prev.batches.map((b, idx) =>
+                idx === 0 && !b.unitPrice ? { ...b, unitPrice: template.suggestedPrice || 0 } : b
+            )
+        }));
+        // Clear any name error
+        if (errors.name) {
+            setErrors(prev => ({ ...prev, name: undefined }));
+        }
+    }, [errors.name]);
+
     const updateLocation = (field: keyof MedicineLocation, value: string) => {
         setFormData(prev => ({
             ...prev,
@@ -280,21 +303,32 @@ export function MedicineModal({ isOpen, medicine, onClose, onSave }: MedicineMod
                 {/* Form */}
                 <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto">
                     <div className="px-6 py-4 space-y-4">
-                        {/* Medicine Name */}
+                        {/* Medicine Name - with autocomplete for new medicines */}
                         <div>
                             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                                 Medicine Name <span className="text-red-500">*</span>
                             </label>
-                            <input
-                                ref={firstInputRef}
-                                type="text"
-                                value={formData.name}
-                                onChange={(e) => updateField('name', e.target.value)}
-                                className={`w-full px-3 py-2 rounded-lg border ${errors.name ? 'border-red-300' : 'border-gray-200 dark:border-gray-600'}
-                             bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100
-                             focus:border-medical-blue focus:ring-2 focus:ring-medical-blue/20`}
-                                placeholder="e.g., Paracetamol 500mg"
-                            />
+                            {medicine ? (
+                                // Editing existing medicine - use plain input
+                                <input
+                                    ref={firstInputRef}
+                                    type="text"
+                                    value={formData.name}
+                                    onChange={(e) => updateField('name', e.target.value)}
+                                    className={`w-full px-3 py-2 rounded-lg border ${errors.name ? 'border-red-300' : 'border-gray-200 dark:border-gray-600'}
+                                         bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100
+                                         focus:border-medical-blue focus:ring-2 focus:ring-medical-blue/20`}
+                                    placeholder="e.g., Paracetamol 500mg"
+                                />
+                            ) : (
+                                // Adding new medicine - use autocomplete
+                                <MedicineAutocomplete
+                                    value={formData.name}
+                                    onChange={(value) => updateField('name', value)}
+                                    onSelect={handleAutocompleteSelect}
+                                    placeholder="Type medicine name to search database..."
+                                />
+                            )}
                             {errors.name && <p className="text-red-500 text-sm mt-1">{errors.name}</p>}
                         </div>
 
