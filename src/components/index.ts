@@ -17,4 +17,4 @@ export { BillHistoryModal } from './BillHistoryModal';
 
 // Settings
 export { SettingsModal, loadSettings, saveSettings } from './SettingsModal';
-export type { PharmacySettings } from './SettingsModal';
+export type { PharmacySettings, ShopDetails } from './SettingsModal';

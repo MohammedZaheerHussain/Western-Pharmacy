@@ -1,6 +1,6 @@
-// Settings Modal with GST toggle and Printer settings
+// Settings Modal with GST, Printer, and Shop Details settings
 import { useState, useEffect } from 'react';
-import { X, Settings, Percent, Printer } from 'lucide-react';
+import { X, Settings, Percent, Printer, Store } from 'lucide-react';
 
 // Paper size presets with dimensions in mm
 export type PaperSize = 'thermal-58mm' | 'thermal-80mm' | 'a4' | 'a5' | 'letter' | 'custom';
@@ -22,11 +22,44 @@ export interface PrinterSettings {
     autoPrint: boolean; // Auto-print on bill confirm
 }
 
+export interface ShopDetails {
+    name: string;
+    address1: string;
+    address2: string;
+    city: string;
+    state: string;
+    pincode: string;
+    phone1: string;
+    phone2: string;
+    gstNumber: string;
+    dlNumber1: string; // Drug License Number 1
+    dlNumber2: string; // Drug License Number 2
+    email: string;
+    tagline: string; // e.g., "Wish you a speedy recovery"
+}
+
 export interface PharmacySettings {
     gstEnabled: boolean;
     gstPercentage: number;
     printer: PrinterSettings;
+    shop: ShopDetails;
 }
+
+const DEFAULT_SHOP: ShopDetails = {
+    name: 'Weston Pharmacy',
+    address1: '',
+    address2: '',
+    city: '',
+    state: '',
+    pincode: '',
+    phone1: '',
+    phone2: '',
+    gstNumber: '',
+    dlNumber1: '',
+    dlNumber2: '',
+    email: '',
+    tagline: 'Thank you for your purchase!',
+};
 
 const DEFAULT_PRINTER: PrinterSettings = {
     paperSize: 'thermal-80mm',
@@ -40,6 +73,7 @@ const DEFAULT_SETTINGS: PharmacySettings = {
     gstEnabled: false,
     gstPercentage: 18, // Default GST rate in India
     printer: DEFAULT_PRINTER,
+    shop: DEFAULT_SHOP,
 };
 
 const SETTINGS_KEY = 'pharmacy-settings';
@@ -53,7 +87,8 @@ export function loadSettings(): PharmacySettings {
             return {
                 ...DEFAULT_SETTINGS,
                 ...parsed,
-                printer: { ...DEFAULT_PRINTER, ...parsed.printer }
+                printer: { ...DEFAULT_PRINTER, ...parsed.printer },
+                shop: { ...DEFAULT_SHOP, ...parsed.shop }
             };
         }
     } catch (e) {
@@ -88,7 +123,7 @@ interface SettingsModalProps {
 
 export function SettingsModal({ isOpen, settings, onClose, onSave }: SettingsModalProps) {
     const [localSettings, setLocalSettings] = useState<PharmacySettings>(settings);
-    const [activeTab, setActiveTab] = useState<'tax' | 'printer'>('tax');
+    const [activeTab, setActiveTab] = useState<'shop' | 'tax' | 'printer'>('shop');
 
     // Sync with external settings when modal opens
     useEffect(() => {
@@ -116,6 +151,13 @@ export function SettingsModal({ isOpen, settings, onClose, onSave }: SettingsMod
         }));
     };
 
+    const updateShop = (updates: Partial<ShopDetails>) => {
+        setLocalSettings(prev => ({
+            ...prev,
+            shop: { ...prev.shop, ...updates }
+        }));
+    };
+
     return (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
             {/* Backdrop */}
@@ -125,7 +167,7 @@ export function SettingsModal({ isOpen, settings, onClose, onSave }: SettingsMod
             />
 
             {/* Modal */}
-            <div className="relative bg-white dark:bg-gray-800 rounded-xl shadow-2xl w-full max-w-lg overflow-hidden">
+            <div className="relative bg-white dark:bg-gray-800 rounded-xl shadow-2xl w-full max-w-2xl overflow-hidden">
                 {/* Header */}
                 <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200 dark:border-gray-700">
                     <div className="flex items-center gap-2">
@@ -142,6 +184,16 @@ export function SettingsModal({ isOpen, settings, onClose, onSave }: SettingsMod
 
                 {/* Tabs */}
                 <div className="flex border-b border-gray-200 dark:border-gray-700">
+                    <button
+                        onClick={() => setActiveTab('shop')}
+                        className={`flex-1 px-4 py-3 text-sm font-medium transition-colors ${activeTab === 'shop'
+                                ? 'text-medical-blue border-b-2 border-medical-blue bg-blue-50/50 dark:bg-blue-900/20'
+                                : 'text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200'
+                            }`}
+                    >
+                        <Store size={16} className="inline mr-2" />
+                        Shop Details
+                    </button>
                     <button
                         onClick={() => setActiveTab('tax')}
                         className={`flex-1 px-4 py-3 text-sm font-medium transition-colors ${activeTab === 'tax'
@@ -165,7 +217,204 @@ export function SettingsModal({ isOpen, settings, onClose, onSave }: SettingsMod
                 </div>
 
                 {/* Content */}
-                <div className="p-6 space-y-6 max-h-96 overflow-y-auto">
+                <div className="p-6 space-y-6 max-h-[60vh] overflow-y-auto">
+                    {/* Shop Details Tab */}
+                    {activeTab === 'shop' && (
+                        <div className="space-y-5">
+                            <h3 className="text-sm font-medium text-gray-700 dark:text-gray-300 uppercase tracking-wide">
+                                Shop / Pharmacy Details
+                            </h3>
+                            <p className="text-xs text-gray-500 dark:text-gray-400">
+                                These details will appear on printed bills and receipts.
+                            </p>
+
+                            {/* Shop Name */}
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                                    Shop / Pharmacy Name *
+                                </label>
+                                <input
+                                    type="text"
+                                    value={localSettings.shop.name}
+                                    onChange={(e) => updateShop({ name: e.target.value })}
+                                    placeholder="e.g., Weston Pharmacy"
+                                    className="w-full px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-600
+                                             bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100
+                                             focus:border-medical-blue focus:ring-2 focus:ring-medical-blue/20"
+                                />
+                            </div>
+
+                            {/* Address */}
+                            <div className="grid grid-cols-1 gap-3">
+                                <input
+                                    type="text"
+                                    value={localSettings.shop.address1}
+                                    onChange={(e) => updateShop({ address1: e.target.value })}
+                                    placeholder="Address Line 1 (Street, Building)"
+                                    className="w-full px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-600
+                                             bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100
+                                             focus:border-medical-blue focus:ring-2 focus:ring-medical-blue/20"
+                                />
+                                <input
+                                    type="text"
+                                    value={localSettings.shop.address2}
+                                    onChange={(e) => updateShop({ address2: e.target.value })}
+                                    placeholder="Address Line 2 (Area, Landmark)"
+                                    className="w-full px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-600
+                                             bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100
+                                             focus:border-medical-blue focus:ring-2 focus:ring-medical-blue/20"
+                                />
+                                <div className="grid grid-cols-3 gap-3">
+                                    <input
+                                        type="text"
+                                        value={localSettings.shop.city}
+                                        onChange={(e) => updateShop({ city: e.target.value })}
+                                        placeholder="City"
+                                        className="px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-600
+                                                 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100
+                                                 focus:border-medical-blue focus:ring-2 focus:ring-medical-blue/20"
+                                    />
+                                    <input
+                                        type="text"
+                                        value={localSettings.shop.state}
+                                        onChange={(e) => updateShop({ state: e.target.value })}
+                                        placeholder="State"
+                                        className="px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-600
+                                                 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100
+                                                 focus:border-medical-blue focus:ring-2 focus:ring-medical-blue/20"
+                                    />
+                                    <input
+                                        type="text"
+                                        value={localSettings.shop.pincode}
+                                        onChange={(e) => updateShop({ pincode: e.target.value })}
+                                        placeholder="PIN Code"
+                                        className="px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-600
+                                                 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100
+                                                 focus:border-medical-blue focus:ring-2 focus:ring-medical-blue/20"
+                                    />
+                                </div>
+                            </div>
+
+                            {/* Phone Numbers */}
+                            <div className="grid grid-cols-2 gap-3">
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                                        Phone 1
+                                    </label>
+                                    <input
+                                        type="tel"
+                                        value={localSettings.shop.phone1}
+                                        onChange={(e) => updateShop({ phone1: e.target.value })}
+                                        placeholder="Primary Phone"
+                                        className="w-full px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-600
+                                                 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100
+                                                 focus:border-medical-blue focus:ring-2 focus:ring-medical-blue/20"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                                        Phone 2 (Optional)
+                                    </label>
+                                    <input
+                                        type="tel"
+                                        value={localSettings.shop.phone2}
+                                        onChange={(e) => updateShop({ phone2: e.target.value })}
+                                        placeholder="Secondary Phone"
+                                        className="w-full px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-600
+                                                 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100
+                                                 focus:border-medical-blue focus:ring-2 focus:ring-medical-blue/20"
+                                    />
+                                </div>
+                            </div>
+
+                            {/* Email */}
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                                    Email (Optional)
+                                </label>
+                                <input
+                                    type="email"
+                                    value={localSettings.shop.email}
+                                    onChange={(e) => updateShop({ email: e.target.value })}
+                                    placeholder="shop@example.com"
+                                    className="w-full px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-600
+                                             bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100
+                                             focus:border-medical-blue focus:ring-2 focus:ring-medical-blue/20"
+                                />
+                            </div>
+
+                            {/* License Numbers */}
+                            <div className="pt-2 border-t border-gray-200 dark:border-gray-700">
+                                <h4 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">
+                                    License & Tax Numbers
+                                </h4>
+                                <div className="grid grid-cols-1 gap-3">
+                                    <div>
+                                        <label className="block text-sm text-gray-600 dark:text-gray-400 mb-1">
+                                            GST Number
+                                        </label>
+                                        <input
+                                            type="text"
+                                            value={localSettings.shop.gstNumber}
+                                            onChange={(e) => updateShop({ gstNumber: e.target.value.toUpperCase() })}
+                                            placeholder="e.g., 29XXXXX1234X1Z5"
+                                            className="w-full px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-600
+                                                     bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 uppercase
+                                                     focus:border-medical-blue focus:ring-2 focus:ring-medical-blue/20"
+                                        />
+                                    </div>
+                                    <div className="grid grid-cols-2 gap-3">
+                                        <div>
+                                            <label className="block text-sm text-gray-600 dark:text-gray-400 mb-1">
+                                                Drug License No. 1
+                                            </label>
+                                            <input
+                                                type="text"
+                                                value={localSettings.shop.dlNumber1}
+                                                onChange={(e) => updateShop({ dlNumber1: e.target.value.toUpperCase() })}
+                                                placeholder="e.g., TN-TNJ-12345"
+                                                className="w-full px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-600
+                                                         bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 uppercase
+                                                         focus:border-medical-blue focus:ring-2 focus:ring-medical-blue/20"
+                                            />
+                                        </div>
+                                        <div>
+                                            <label className="block text-sm text-gray-600 dark:text-gray-400 mb-1">
+                                                Drug License No. 2
+                                            </label>
+                                            <input
+                                                type="text"
+                                                value={localSettings.shop.dlNumber2}
+                                                onChange={(e) => updateShop({ dlNumber2: e.target.value.toUpperCase() })}
+                                                placeholder="e.g., TN-TNJ-67890"
+                                                className="w-full px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-600
+                                                         bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 uppercase
+                                                         focus:border-medical-blue focus:ring-2 focus:ring-medical-blue/20"
+                                            />
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* Tagline */}
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                                    Footer Message / Tagline
+                                </label>
+                                <input
+                                    type="text"
+                                    value={localSettings.shop.tagline}
+                                    onChange={(e) => updateShop({ tagline: e.target.value })}
+                                    placeholder="e.g., Thank you for your purchase!"
+                                    className="w-full px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-600
+                                             bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100
+                                             focus:border-medical-blue focus:ring-2 focus:ring-medical-blue/20"
+                                />
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Tax Tab */}
                     {activeTab === 'tax' && (
                         <div className="space-y-4">
                             <h3 className="text-sm font-medium text-gray-700 dark:text-gray-300 uppercase tracking-wide">
@@ -227,6 +476,7 @@ export function SettingsModal({ isOpen, settings, onClose, onSave }: SettingsMod
                         </div>
                     )}
 
+                    {/* Printer Tab */}
                     {activeTab === 'printer' && (
                         <div className="space-y-5">
                             <h3 className="text-sm font-medium text-gray-700 dark:text-gray-300 uppercase tracking-wide">
@@ -296,9 +546,9 @@ export function SettingsModal({ isOpen, settings, onClose, onSave }: SettingsMod
                             {/* Show Logo Toggle */}
                             <div className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-700/50 rounded-lg">
                                 <div>
-                                    <p className="font-medium text-gray-900 dark:text-gray-100">Show Logo on Receipt</p>
+                                    <p className="font-medium text-gray-900 dark:text-gray-100">Show Header on Receipt</p>
                                     <p className="text-sm text-gray-500 dark:text-gray-400">
-                                        Print pharmacy name/logo at top
+                                        Print shop details at top of receipt
                                     </p>
                                 </div>
                                 <button

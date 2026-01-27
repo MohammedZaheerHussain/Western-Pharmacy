@@ -1,11 +1,13 @@
 /**
  * BillReceiptModal - Printable receipt view for a completed bill
+ * Uses shop settings from Settings for header details
  * Imports print.css for professional thermal printer output
  */
 
 import { useEffect, useRef } from 'react';
 import { Bill } from '../types/medicine';
 import { X, Printer } from 'lucide-react';
+import { loadSettings, ShopDetails } from './SettingsModal';
 import '../styles/print.css';
 
 interface BillReceiptModalProps {
@@ -15,6 +17,8 @@ interface BillReceiptModalProps {
 
 export function BillReceiptModal({ bill, onClose }: BillReceiptModalProps) {
     const receiptRef = useRef<HTMLDivElement>(null);
+    const settings = loadSettings();
+    const shop: ShopDetails = settings.shop;
 
     // Handle Escape key
     useEffect(() => {
@@ -27,10 +31,16 @@ export function BillReceiptModal({ bill, onClose }: BillReceiptModalProps) {
 
     /** Format date in Indian style */
     const formatDate = (dateString: string) => {
-        return new Date(dateString).toLocaleString('en-IN', {
+        return new Date(dateString).toLocaleDateString('en-IN', {
             day: '2-digit',
-            month: 'short',
-            year: 'numeric',
+            month: '2-digit',
+            year: 'numeric'
+        });
+    };
+
+    /** Format time */
+    const formatTime = (dateString: string) => {
+        return new Date(dateString).toLocaleTimeString('en-IN', {
             hour: '2-digit',
             minute: '2-digit'
         });
@@ -45,9 +55,29 @@ export function BillReceiptModal({ bill, onClose }: BillReceiptModalProps) {
         }).format(amount);
     };
 
+    /** Format short currency (no symbol) */
+    const formatAmount = (amount: number) => {
+        return amount.toFixed(2);
+    };
+
     /** Handle print */
     const handlePrint = () => {
         window.print();
+    };
+
+    /** Build address string */
+    const getFullAddress = () => {
+        const parts = [
+            shop.address1,
+            shop.address2,
+            [shop.city, shop.state, shop.pincode].filter(Boolean).join(', ')
+        ].filter(Boolean);
+        return parts.join(', ');
+    };
+
+    /** Get phone numbers string */
+    const getPhoneNumbers = () => {
+        return [shop.phone1, shop.phone2].filter(Boolean).join(' / ');
     };
 
     return (
@@ -58,11 +88,11 @@ export function BillReceiptModal({ bill, onClose }: BillReceiptModalProps) {
             aria-modal="true"
             aria-labelledby="receipt-title"
         >
-            <div className="modal-content bg-white dark:bg-gray-900 rounded-2xl shadow-xl w-full max-w-md max-h-[90vh] 
+            <div className="modal-content bg-white dark:bg-gray-900 rounded-2xl shadow-xl w-full max-w-lg max-h-[90vh] 
                           overflow-hidden flex flex-col mx-4">
                 {/* Header - Hidden in print */}
                 <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200 dark:border-gray-700 no-print">
-                    <h2 id="receipt-title" className="text-xl font-semibold text-gray-900 dark:text-gray-100">Bill Receipt</h2>
+                    <h2 id="receipt-title" className="text-xl font-semibold text-gray-900 dark:text-gray-100">Invoice / Receipt</h2>
                     <div className="flex items-center gap-2">
                         <button
                             onClick={handlePrint}
@@ -85,82 +115,143 @@ export function BillReceiptModal({ bill, onClose }: BillReceiptModalProps) {
                 </div>
 
                 {/* Receipt Content - This is what prints */}
-                <div className="flex-1 overflow-y-auto p-6 print-container">
-                    <div ref={receiptRef}>
-                        {/* Receipt Header */}
-                        <div className="receipt-header text-center mb-6">
-                            <h1 className="text-xl font-bold text-gray-900 dark:text-gray-100">WESTORN PHARMACY</h1>
-                            <p className="pharmacy-address text-sm text-gray-500 dark:text-gray-400">Udumalaippettai, Tamil Nadu</p>
-                            <p className="pharmacy-address text-sm text-gray-500 dark:text-gray-400">Phone: ____________</p>
-                            <div className="border-t border-dashed border-gray-300 dark:border-gray-600 my-4" />
-                            <div className="text-left mb-2">
-                                <p className="bill-number text-lg font-bold text-gray-900 dark:text-gray-100">{bill.billNumber}</p>
-                                <p className="text-sm text-gray-500 dark:text-gray-400">{formatDate(bill.createdAt)}</p>
-                                {(bill.customerName || bill.customerPhone) && (
-                                    <div className="mt-2 pt-2 border-t border-dotted border-gray-300 dark:border-gray-600">
-                                        {bill.customerName && (
-                                            <p className="text-sm text-gray-900 dark:text-gray-100">
-                                                <span className="text-gray-500 dark:text-gray-400">Customer:</span> {bill.customerName}
-                                            </p>
-                                        )}
-                                        {bill.customerPhone && (
-                                            <p className="text-sm text-gray-900 dark:text-gray-100">
-                                                <span className="text-gray-500 dark:text-gray-400">Phone:</span> {bill.customerPhone}
-                                            </p>
-                                        )}
+                <div className="flex-1 overflow-y-auto p-4 print-container bg-white">
+                    <div ref={receiptRef} className="text-gray-900 text-sm">
+                        {/* Shop Header */}
+                        {settings.printer.showLogo && (
+                            <div className="receipt-header text-center border-b-2 border-gray-800 pb-3 mb-3">
+                                <h1 className="text-lg font-bold uppercase tracking-wide">{shop.name || 'PHARMACY'}</h1>
+                                {getFullAddress() && (
+                                    <p className="text-xs mt-1">{getFullAddress()}</p>
+                                )}
+                                {getPhoneNumbers() && (
+                                    <p className="text-xs">Ph: {getPhoneNumbers()}</p>
+                                )}
+                                {shop.email && (
+                                    <p className="text-xs">{shop.email}</p>
+                                )}
+                            </div>
+                        )}
+
+                        {/* License Numbers Row */}
+                        {(shop.gstNumber || shop.dlNumber1 || shop.dlNumber2) && (
+                            <div className="grid grid-cols-2 gap-2 text-xs border-b border-gray-300 pb-2 mb-2">
+                                {shop.gstNumber && (
+                                    <div>
+                                        <span className="font-semibold">GST NO:</span> {shop.gstNumber}
                                     </div>
                                 )}
+                                {(shop.dlNumber1 || shop.dlNumber2) && (
+                                    <div className="text-right">
+                                        <span className="font-semibold">DL.NO:</span> {shop.dlNumber1}
+                                        {shop.dlNumber2 && <><br />{shop.dlNumber2}</>}
+                                    </div>
+                                )}
+                            </div>
+                        )}
+
+                        {/* Invoice Title */}
+                        <div className="text-center font-bold text-sm border-b border-gray-300 pb-2 mb-3">
+                            INVOICE / RECEIPT
+                        </div>
+
+                        {/* Bill Details Row */}
+                        <div className="grid grid-cols-2 gap-2 text-xs mb-3">
+                            <div>
+                                {bill.customerName && (
+                                    <p><span className="font-semibold">Patient Name:</span> {bill.customerName}</p>
+                                )}
+                                {bill.customerPhone && (
+                                    <p><span className="font-semibold">Phone:</span> {bill.customerPhone}</p>
+                                )}
+                            </div>
+                            <div className="text-right">
+                                <p><span className="font-semibold">Bill Date:</span> {formatDate(bill.createdAt)}</p>
+                                <p><span className="font-semibold">Bill No:</span> {bill.billNumber}</p>
+                                <p><span className="font-semibold">Time:</span> {formatTime(bill.createdAt)}</p>
                             </div>
                         </div>
 
                         {/* Items Table */}
-                        <table className="receipt-table w-full text-sm mb-4">
+                        <table className="receipt-table w-full text-xs border-collapse mb-3">
                             <thead>
-                                <tr className="border-b border-gray-300 dark:border-gray-600">
-                                    <th className="py-2 text-left font-semibold text-gray-700 dark:text-gray-300">Item</th>
-                                    <th className="py-2 text-center font-semibold text-gray-700 dark:text-gray-300">Qty</th>
-                                    <th className="py-2 text-right font-semibold text-gray-700 dark:text-gray-300">Price</th>
-                                    <th className="py-2 text-right font-semibold text-gray-700 dark:text-gray-300">Total</th>
+                                <tr className="border-y border-gray-800 bg-gray-100">
+                                    <th className="py-1 px-1 text-left font-bold">Sr.</th>
+                                    <th className="py-1 px-1 text-left font-bold">Medicine Name</th>
+                                    <th className="py-1 px-1 text-center font-bold">Qty</th>
+                                    <th className="py-1 px-1 text-right font-bold">MRP</th>
+                                    <th className="py-1 px-1 text-right font-bold">Total</th>
                                 </tr>
                             </thead>
-                            <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
+                            <tbody>
                                 {bill.items.map((item, idx) => (
-                                    <tr key={idx}>
-                                        <td className="py-2 item-name">
-                                            <p className="font-medium text-gray-900 dark:text-gray-100">{item.medicineName}</p>
-                                            <p className="text-xs text-gray-500 dark:text-gray-400">{item.brand}</p>
+                                    <tr key={idx} className="border-b border-gray-200">
+                                        <td className="py-1 px-1">{idx + 1}</td>
+                                        <td className="py-1 px-1">
+                                            <span className="font-medium">{item.medicineName}</span>
+                                            {item.brand && (
+                                                <span className="text-gray-500 text-[10px] block">{item.brand}</span>
+                                            )}
                                         </td>
-                                        <td className="py-2 text-center item-qty text-gray-900 dark:text-gray-100">{item.quantity}</td>
-                                        <td className="py-2 text-right item-price text-gray-600 dark:text-gray-400">{formatCurrency(item.unitPrice)}</td>
-                                        <td className="py-2 text-right item-total font-medium text-gray-900 dark:text-gray-100">{formatCurrency(item.total)}</td>
+                                        <td className="py-1 px-1 text-center">{item.quantity}</td>
+                                        <td className="py-1 px-1 text-right">{formatAmount(item.unitPrice)}</td>
+                                        <td className="py-1 px-1 text-right font-medium">{formatAmount(item.total)}</td>
                                     </tr>
                                 ))}
                             </tbody>
                         </table>
 
                         {/* Summary */}
-                        <div className="receipt-summary border-t-2 border-gray-300 dark:border-gray-600 pt-4 space-y-2">
-                            <div className="summary-row flex justify-between">
-                                <span className="text-gray-600 dark:text-gray-400">Subtotal</span>
-                                <span className="text-gray-900 dark:text-gray-100">{formatCurrency(bill.subtotal)}</span>
+                        <div className="receipt-summary border-t-2 border-gray-800 pt-2 space-y-1 text-xs">
+                            <div className="flex justify-between">
+                                <span>Total Amount:</span>
+                                <span className="font-medium">{formatCurrency(bill.subtotal)}</span>
                             </div>
                             {bill.discountPercent > 0 && (
-                                <div className="summary-row discount flex justify-between text-green-600 dark:text-green-400">
-                                    <span>Discount ({bill.discountPercent}%)</span>
+                                <div className="flex justify-between text-green-700">
+                                    <span>Discount ({bill.discountPercent}%):</span>
                                     <span>-{formatCurrency(bill.discountAmount)}</span>
                                 </div>
                             )}
-                            <div className="summary-row grand-total flex justify-between text-xl font-bold border-t-2 border-gray-400 dark:border-gray-500 pt-3 mt-3">
-                                <span className="text-gray-900 dark:text-gray-100">Grand Total</span>
-                                <span className="text-medical-blue">{formatCurrency(bill.grandTotal)}</span>
+                            {settings.gstEnabled && (
+                                <div className="flex justify-between">
+                                    <span>GST ({settings.gstPercentage}%):</span>
+                                    <span>+{formatCurrency((bill.subtotal - bill.discountAmount) * settings.gstPercentage / 100)}</span>
+                                </div>
+                            )}
+                            <div className="flex justify-between text-base font-bold border-t border-gray-400 pt-2 mt-2">
+                                <span>Net Amount:</span>
+                                <span>
+                                    {formatCurrency(
+                                        settings.gstEnabled
+                                            ? bill.grandTotal + (bill.subtotal - bill.discountAmount) * settings.gstPercentage / 100
+                                            : bill.grandTotal
+                                    )}
+                                </span>
+                            </div>
+                        </div>
+
+                        {/* Payment Info */}
+                        <div className="mt-3 pt-2 border-t border-dashed border-gray-400 text-xs">
+                            <div className="flex justify-between">
+                                <span>Payment Mode:</span>
+                                <span className="font-medium">Cash</span>
                             </div>
                         </div>
 
                         {/* Footer */}
-                        <div className="receipt-footer text-center mt-8 pt-4 border-t border-dashed border-gray-300 dark:border-gray-600">
-                            <p className="thank-you font-semibold text-gray-900 dark:text-gray-100">Thank you for your purchase!</p>
-                            <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">Weston Pharmacy</p>
-                            <p className="powered-by text-xs text-gray-400 dark:text-gray-500 mt-4">Powered by Weston Pharmacy App</p>
+                        <div className="receipt-footer text-center mt-6 pt-3 border-t border-dashed border-gray-400">
+                            {shop.tagline && (
+                                <p className="font-semibold text-sm italic">{shop.tagline}</p>
+                            )}
+                            <p className="text-[10px] text-gray-500 mt-2">
+                                {shop.name || 'Pharmacy'}
+                            </p>
+                            <div className="mt-4 pt-3 border-t border-gray-200">
+                                <p className="text-[9px] text-gray-400">
+                                    Powered by Weston Pharmacy App
+                                </p>
+                            </div>
                         </div>
                     </div>
                 </div>
