@@ -52,20 +52,24 @@ const MedicineRow = React.memo(function MedicineRow({
     );
 });
 
-/** Cart item row with quantity controls */
+/** Cart item row with strip/loose tablet quantity controls */
 const CartRow = React.memo(function CartRow({
     item,
     isEditMode,
     onRemove,
-    onUpdateQty,
+    onUpdateStripLoose,
     formatCurrency
 }: {
     item: CartItem & { originalQuantity?: number };
     isEditMode: boolean;
     onRemove: () => void;
-    onUpdateQty: (qty: number) => void;
+    onUpdateStripLoose: (stripQty: number, looseQty: number) => void;
     formatCurrency: (n: number) => string;
 }) {
+    const tabletsPerStrip = item.tabletsPerStrip || 1;
+    const hasLooseBilling = tabletsPerStrip > 1;
+    const perTabletPrice = hasLooseBilling ? item.unitPrice / tabletsPerStrip : item.unitPrice;
+
     // Calculate if this will leave low stock
     const effectiveMax = isEditMode && item.originalQuantity
         ? item.availableStock + item.originalQuantity
@@ -74,6 +78,10 @@ const CartRow = React.memo(function CartRow({
     const isLowStockAfter = postSale > 0 && postSale < LOW_STOCK_THRESHOLD;
     const isRemoved = isEditMode && item.quantity === 0;
 
+    // Calculate max strips possible
+    const maxStrips = Math.floor(effectiveMax / tabletsPerStrip);
+    const maxLoose = tabletsPerStrip - 1;
+
     return (
         <div className={`rounded-lg p-3 ${isRemoved
             ? 'bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-800'
@@ -81,12 +89,18 @@ const CartRow = React.memo(function CartRow({
                 ? 'low-stock-warning'
                 : 'bg-gray-50 dark:bg-gray-800'
             }`}>
+            {/* Header with name and prices */}
             <div className="flex items-start justify-between mb-2">
                 <div className="flex-1 min-w-0">
                     <p className={`font-medium truncate ${isRemoved ? 'text-red-600 dark:text-red-400 line-through' : 'text-gray-900 dark:text-gray-100'}`}>
                         {item.medicineName}
                     </p>
-                    <p className="text-sm text-gray-500 dark:text-gray-400">{formatCurrency(item.unitPrice)} each</p>
+                    <p className="text-sm text-gray-500 dark:text-gray-400">
+                        {formatCurrency(item.unitPrice)}/strip
+                        {hasLooseBilling && (
+                            <span className="text-medical-blue"> • {formatCurrency(perTabletPrice)}/tablet</span>
+                        )}
+                    </p>
                 </div>
                 <button
                     onClick={onRemove}
@@ -98,48 +112,103 @@ const CartRow = React.memo(function CartRow({
                 </button>
             </div>
 
-            <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                    <button
-                        onClick={() => onUpdateQty(item.quantity - 1)}
-                        disabled={!isEditMode && item.quantity <= 1}
-                        className="w-8 h-8 flex items-center justify-center bg-white dark:bg-gray-700 border 
-                                 border-gray-200 dark:border-gray-600 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-600 
-                                 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                        aria-label="Decrease quantity"
-                    >
-                        <Minus size={14} />
-                    </button>
-                    <input
-                        type="number"
-                        value={item.quantity}
-                        onChange={(e) => onUpdateQty(parseInt(e.target.value) || 0)}
-                        min={isEditMode ? 0 : 1}
-                        max={effectiveMax}
-                        className="w-14 text-center py-1 border border-gray-200 dark:border-gray-600 
-                                 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
-                        aria-label="Quantity"
-                    />
-                    <button
-                        onClick={() => onUpdateQty(item.quantity + 1)}
-                        disabled={item.quantity >= effectiveMax}
-                        className="w-8 h-8 flex items-center justify-center bg-white dark:bg-gray-700 border 
-                                 border-gray-200 dark:border-gray-600 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-600 
-                                 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                        aria-label="Increase quantity"
-                    >
-                        <Plus size={14} />
-                    </button>
-                    <span className="text-xs text-gray-400 dark:text-gray-500">
-                        max {effectiveMax}
-                    </span>
+            {/* Two-field quantity input */}
+            <div className="flex items-center justify-between gap-3">
+                <div className="flex items-center gap-3">
+                    {/* Strips input */}
+                    <div className="flex flex-col">
+                        <label className="text-xs text-gray-500 dark:text-gray-400 mb-0.5">Strips</label>
+                        <div className="flex items-center gap-1">
+                            <button
+                                onClick={() => onUpdateStripLoose(Math.max(0, (item.stripQty || 0) - 1), item.looseQty || 0)}
+                                disabled={!isEditMode && (item.stripQty || 0) <= 0 && (item.looseQty || 0) <= 1}
+                                className="w-7 h-7 flex items-center justify-center bg-white dark:bg-gray-700 border 
+                                         border-gray-200 dark:border-gray-600 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-600 
+                                         transition-colors disabled:opacity-50 disabled:cursor-not-allowed text-xs"
+                                aria-label="Decrease strips"
+                            >
+                                <Minus size={12} />
+                            </button>
+                            <input
+                                type="number"
+                                value={item.stripQty || 0}
+                                onChange={(e) => onUpdateStripLoose(parseInt(e.target.value) || 0, item.looseQty || 0)}
+                                min={0}
+                                max={maxStrips}
+                                className="w-12 text-center py-1 text-sm border border-gray-200 dark:border-gray-600 
+                                         rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
+                                aria-label="Full strips"
+                            />
+                            <button
+                                onClick={() => onUpdateStripLoose((item.stripQty || 0) + 1, item.looseQty || 0)}
+                                disabled={(item.stripQty || 0) >= maxStrips && (item.looseQty || 0) >= maxLoose}
+                                className="w-7 h-7 flex items-center justify-center bg-white dark:bg-gray-700 border 
+                                         border-gray-200 dark:border-gray-600 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-600 
+                                         transition-colors disabled:opacity-50 disabled:cursor-not-allowed text-xs"
+                                aria-label="Increase strips"
+                            >
+                                <Plus size={12} />
+                            </button>
+                        </div>
+                    </div>
+
+                    {/* Loose tablets input - only show if tabletsPerStrip > 1 */}
+                    {hasLooseBilling && (
+                        <div className="flex flex-col">
+                            <label className="text-xs text-gray-500 dark:text-gray-400 mb-0.5">
+                                Loose <span className="opacity-70">(0-{maxLoose})</span>
+                            </label>
+                            <div className="flex items-center gap-1">
+                                <button
+                                    onClick={() => onUpdateStripLoose(item.stripQty || 0, Math.max(0, (item.looseQty || 0) - 1))}
+                                    disabled={(item.looseQty || 0) <= 0}
+                                    className="w-7 h-7 flex items-center justify-center bg-white dark:bg-gray-700 border 
+                                             border-gray-200 dark:border-gray-600 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-600 
+                                             transition-colors disabled:opacity-50 disabled:cursor-not-allowed text-xs"
+                                    aria-label="Decrease loose tablets"
+                                >
+                                    <Minus size={12} />
+                                </button>
+                                <input
+                                    type="number"
+                                    value={item.looseQty || 0}
+                                    onChange={(e) => onUpdateStripLoose(item.stripQty || 0, parseInt(e.target.value) || 0)}
+                                    min={0}
+                                    max={maxLoose}
+                                    className="w-10 text-center py-1 text-sm border border-gray-200 dark:border-gray-600 
+                                             rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
+                                    aria-label="Loose tablets"
+                                />
+                                <button
+                                    onClick={() => onUpdateStripLoose(item.stripQty || 0, Math.min(maxLoose, (item.looseQty || 0) + 1))}
+                                    disabled={(item.looseQty || 0) >= maxLoose}
+                                    className="w-7 h-7 flex items-center justify-center bg-white dark:bg-gray-700 border 
+                                             border-gray-200 dark:border-gray-600 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-600 
+                                             transition-colors disabled:opacity-50 disabled:cursor-not-allowed text-xs"
+                                    aria-label="Increase loose tablets"
+                                >
+                                    <Plus size={12} />
+                                </button>
+                            </div>
+                        </div>
+                    )}
                 </div>
+
+                {/* Total and summary */}
                 <div className="text-right">
                     <p className="font-semibold text-gray-900 dark:text-gray-100">
                         {formatCurrency(item.total)}
                     </p>
+                    <p className="text-xs text-gray-500 dark:text-gray-400">
+                        {item.quantity} {hasLooseBilling ? 'tablets' : 'units'}
+                        {hasLooseBilling && (item.stripQty || 0) > 0 && (item.looseQty || 0) > 0 && (
+                            <span className="block">
+                                ({item.stripQty} strip{(item.stripQty || 0) !== 1 ? 's' : ''} + {item.looseQty} loose)
+                            </span>
+                        )}
+                    </p>
                     {isLowStockAfter && (
-                        <p className="text-xs text-amber-600 dark:text-amber-400 flex items-center gap-1">
+                        <p className="text-xs text-amber-600 dark:text-amber-400 flex items-center justify-end gap-1">
                             <AlertTriangle size={10} />
                             {postSale} left
                         </p>
@@ -223,6 +292,7 @@ interface BillingPanelProps {
     onAddToCart: (medicine: Medicine, quantity?: number) => void;
     onRemoveFromCart: (medicineId: string) => void;
     onUpdateQuantity: (medicineId: string, quantity: number) => void;
+    onUpdateStripLooseQty: (medicineId: string, stripQty: number, looseQty: number) => void;
     onClearCart: () => void;
     onSetDiscount: (percent: number) => void;
     onSetCustomerName: (name: string) => void;
@@ -255,6 +325,7 @@ export function BillingPanel({
     onAddToCart,
     onRemoveFromCart,
     onUpdateQuantity,
+    onUpdateStripLooseQty,
     onClearCart,
     onSetDiscount,
     onSetCustomerName,
@@ -429,7 +500,6 @@ export function BillingPanel({
                             className="w-full pl-10 pr-4 py-2 rounded-lg border border-gray-200 dark:border-gray-600 
                                      bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100
                                      focus:border-medical-blue focus:ring-2 focus:ring-medical-blue/20"
-                            disabled={isEditMode}
                             aria-label="Search medicines"
                         />
                     </div>
@@ -437,13 +507,7 @@ export function BillingPanel({
 
                 {/* Medicine List */}
                 <div className="max-h-[400px] overflow-y-auto">
-                    {isEditMode ? (
-                        <div className="p-6 text-center text-gray-500 dark:text-gray-400">
-                            <AlertCircle size={32} className="mx-auto mb-2 text-gray-300" />
-                            <p>Cannot add new medicines in edit mode</p>
-                            <p className="text-sm">Modify quantities in the cart or create a new bill</p>
-                        </div>
-                    ) : filteredMedicines.length === 0 ? (
+                    {filteredMedicines.length === 0 ? (
                         <div className="p-8 text-center text-gray-500 dark:text-gray-400">
                             {search ? 'No medicines found' : 'No medicines in stock'}
                         </div>
@@ -554,7 +618,7 @@ export function BillingPanel({
                                 item={item as CartItem & { originalQuantity?: number }}
                                 isEditMode={isEditMode}
                                 onRemove={() => handleRemove(item.medicineId)}
-                                onUpdateQty={(qty) => onUpdateQuantity(item.medicineId, qty)}
+                                onUpdateStripLoose={(stripQty, looseQty) => onUpdateStripLooseQty(item.medicineId, stripQty, looseQty)}
                                 formatCurrency={formatCurrency}
                             />
                         ))

@@ -35,6 +35,7 @@ interface UseBillingReturn {
     addToCart: (medicine: Medicine, quantity?: number) => void;
     removeFromCart: (medicineId: string) => void;
     updateCartQuantity: (medicineId: string, quantity: number) => void;
+    updateStripLooseQty: (medicineId: string, stripQty: number, looseQty: number) => void;
     clearCart: () => void;
     setDiscount: (percent: number) => void;
 
@@ -105,7 +106,7 @@ export function useBilling(): UseBillingReturn {
     }, [getPostSaleStock]);
 
     /**
-     * Add medicine to cart - increments quantity if already present
+     * Add medicine to cart - uses FEFO (First Expiry First Out) for batch pricing
      */
     const addToCart = useCallback((medicine: Medicine, quantity: number = 1) => {
         if (medicine.quantity <= 0) {
@@ -113,35 +114,86 @@ export function useBilling(): UseBillingReturn {
             return;
         }
 
+        const tabletsPerStrip = medicine.tabletsPerStrip || 1;
+
+        // FEFO: Sort batches by expiry date to get earliest expiry first
+        const sortedBatches = [...(medicine.batches || [])]
+            .filter(b => b.quantity > 0)
+            .sort((a, b) => new Date(a.expiryDate).getTime() - new Date(b.expiryDate).getTime());
+
+        // Get weighted average price based on FEFO batch allocation
+        const getFEFOPrice = (tablets: number): { unitPrice: number; batchBreakdown: string } => {
+            if (sortedBatches.length === 0) {
+                return { unitPrice: medicine.unitPrice || 0, batchBreakdown: '' };
+            }
+
+            let remainingTablets = tablets;
+            let totalCost = 0;
+            const allocations: string[] = [];
+
+            for (const batch of sortedBatches) {
+                if (remainingTablets <= 0) break;
+
+                const batchPrice = batch.unitPrice || medicine.unitPrice || 0;
+                const tabletsFromBatch = Math.min(remainingTablets, batch.quantity);
+                const stripsFromBatch = tabletsFromBatch / tabletsPerStrip;
+
+                totalCost += stripsFromBatch * batchPrice;
+                remainingTablets -= tabletsFromBatch;
+
+                if (tabletsFromBatch > 0 && sortedBatches.length > 1) {
+                    allocations.push(`${batch.batchNumber}: ₹${batchPrice}`);
+                }
+            }
+
+            const effectiveStripPrice = tablets > 0 ? (totalCost / (tablets / tabletsPerStrip)) : 0;
+            return {
+                unitPrice: effectiveStripPrice,
+                batchBreakdown: allocations.length > 1 ? allocations.join(', ') : ''
+            };
+        };
+
         setCart(prev => {
             const existingIndex = prev.findIndex(item => item.medicineId === medicine.id);
 
             if (existingIndex >= 0) {
-                // Increment existing item
+                // Increment existing item by tablets
                 const existing = prev[existingIndex];
-                const newQty = existing.quantity + quantity;
+                const newTotalTablets = existing.quantity + quantity;
 
                 // Calculate effective available (in edit mode, add back original qty)
                 const effectiveAvailable = isEditMode
                     ? medicine.quantity + (existing.originalQuantity || 0)
                     : medicine.quantity;
 
-                if (newQty > effectiveAvailable) {
-                    setError(`Cannot add more. Available: ${effectiveAvailable}`);
+                if (newTotalTablets > effectiveAvailable) {
+                    setError(`Cannot add more. Available: ${effectiveAvailable} tablets`);
                     return prev;
                 }
+
+                // Get FEFO-based price for the new quantity
+                const { unitPrice } = getFEFOPrice(newTotalTablets);
+
+                // Recalculate strip/loose breakdown
+                const newStripQty = Math.floor(newTotalTablets / tabletsPerStrip);
+                const newLooseQty = newTotalTablets % tabletsPerStrip;
+                const stripTotal = newStripQty * unitPrice;
+                const looseTotal = tabletsPerStrip > 1 ? newLooseQty * (unitPrice / tabletsPerStrip) : 0;
 
                 const updated = [...prev];
                 updated[existingIndex] = {
                     ...existing,
-                    quantity: newQty,
-                    total: newQty * existing.unitPrice
+                    quantity: newTotalTablets,
+                    unitPrice,
+                    stripQty: newStripQty,
+                    looseQty: newLooseQty,
+                    total: stripTotal + looseTotal
                 };
 
                 // Low stock warning
-                const postSale = effectiveAvailable - newQty;
+                const postSale = effectiveAvailable - newTotalTablets;
                 if (postSale > 0 && postSale < LOW_STOCK_THRESHOLD) {
-                    setError(`Warning: Only ${postSale} units will remain after sale`);
+                    setError(`Warning: Only ${postSale} tablets will remain after sale`);
                 } else {
                     setError(null);
                 }
@@ -149,31 +201,38 @@ export function useBilling(): UseBillingReturn {
                 return updated;
             }
 
-            // Add new item (only for non-edit mode)
-            if (isEditMode) {
-                setError('Cannot add new medicines in edit mode. Create a new bill instead.');
+            // Add new item - allowed in both new bill and edit mode
+            if (quantity > medicine.quantity) {
+                setError(`Requested quantity exceeds available stock (${medicine.quantity} tablets)`);
                 return prev;
             }
 
-            if (quantity > medicine.quantity) {
-                setError(`Requested quantity exceeds available stock (${medicine.quantity})`);
-                return prev;
-            }
+            // Get FEFO-based price
+            const { unitPrice } = getFEFOPrice(quantity);
+
+            // Calculate initial strip/loose breakdown
+            const stripQty = Math.floor(quantity / tabletsPerStrip);
+            const looseQty = quantity % tabletsPerStrip;
+            const stripTotal = stripQty * unitPrice;
+            const looseTotal = tabletsPerStrip > 1 ? looseQty * (unitPrice / tabletsPerStrip) : 0;
 
             const newItem: EditableCartItem = {
                 medicineId: medicine.id,
                 medicineName: medicine.name,
                 brand: medicine.brand,
-                quantity,
-                unitPrice: medicine.unitPrice || 0,
-                total: quantity * (medicine.unitPrice || 0),
+                quantity, // Total tablets
+                unitPrice,
+                tabletsPerStrip,
+                stripQty,
+                looseQty,
+                total: stripTotal + looseTotal,
                 availableStock: medicine.quantity
             };
 
             // Low stock warning
             const postSale = medicine.quantity - quantity;
             if (postSale > 0 && postSale < LOW_STOCK_THRESHOLD) {
-                setError(`Warning: Only ${postSale} units will remain after sale`);
+                setError(`Warning: Only ${postSale} tablets will remain after sale`);
             } else {
                 setError(null);
             }
@@ -190,7 +249,7 @@ export function useBilling(): UseBillingReturn {
             // In edit mode, set quantity to 0 to trigger restock on save
             setCart(prev => prev.map(item =>
                 item.medicineId === medicineId
-                    ? { ...item, quantity: 0, total: 0 }
+                    ? { ...item, quantity: 0, stripQty: 0, looseQty: 0, total: 0 }
                     : item
             ));
         } else {
@@ -227,16 +286,84 @@ export function useBilling(): UseBillingReturn {
             }
 
             const updated = [...prev];
+            // Recalculate strip/loose breakdown based on new total
+            const tabletsPerStrip = item.tabletsPerStrip || 1;
+            const stripQty = Math.floor(quantity / tabletsPerStrip);
+            const looseQty = quantity % tabletsPerStrip;
+            const stripTotal = stripQty * item.unitPrice;
+            const looseTotal = tabletsPerStrip > 1 ? looseQty * (item.unitPrice / tabletsPerStrip) : 0;
+
             updated[itemIndex] = {
                 ...item,
                 quantity,
-                total: quantity * item.unitPrice
+                stripQty,
+                looseQty,
+                total: stripTotal + looseTotal
             };
 
             // Low stock warning
             const postSale = effectiveAvailable - quantity;
             if (postSale > 0 && postSale < LOW_STOCK_THRESHOLD) {
-                setError(`Warning: Only ${postSale} units will remain`);
+                setError(`Warning: Only ${postSale} tablets will remain`);
+            } else {
+                setError(null);
+            }
+
+            return updated;
+        });
+    }, [isEditMode, removeFromCart]);
+
+    /**
+     * Update cart item with strip and loose tablet quantities
+     * This is the primary handler for the two-field billing input
+     */
+    const updateStripLooseQty = useCallback((medicineId: string, stripQty: number, looseQty: number) => {
+        if (stripQty < 0 || looseQty < 0) return;
+
+        setCart(prev => {
+            const itemIndex = prev.findIndex(item => item.medicineId === medicineId);
+            if (itemIndex < 0) return prev;
+
+            const item = prev[itemIndex];
+            const tabletsPerStrip = item.tabletsPerStrip || 1;
+
+            // Ensure loose doesn't exceed max
+            const validLoose = Math.min(looseQty, tabletsPerStrip - 1);
+            const totalTablets = (stripQty * tabletsPerStrip) + validLoose;
+
+            // In edit mode, allow qty=0
+            if (!isEditMode && totalTablets < 1) {
+                removeFromCart(medicineId);
+                return prev;
+            }
+
+            // Calculate effective available stock
+            const effectiveAvailable = isEditMode
+                ? item.availableStock + (item.originalQuantity || 0)
+                : item.availableStock;
+
+            if (totalTablets > effectiveAvailable) {
+                setError(`Maximum available: ${effectiveAvailable} tablets`);
+                return prev;
+            }
+
+            // Calculate price
+            const stripTotal = stripQty * item.unitPrice;
+            const looseTotal = tabletsPerStrip > 1 ? validLoose * (item.unitPrice / tabletsPerStrip) : 0;
+
+            const updated = [...prev];
+            updated[itemIndex] = {
+                ...item,
+                quantity: totalTablets,
+                stripQty,
+                looseQty: validLoose,
+                total: stripTotal + looseTotal
+            };
+
+            // Low stock warning
+            const postSale = effectiveAvailable - totalTablets;
+            if (postSale > 0 && postSale < LOW_STOCK_THRESHOLD) {
+                setError(`Warning: Only ${postSale} tablets will remain`);
             } else {
                 setError(null);
             }
@@ -284,12 +411,17 @@ export function useBilling(): UseBillingReturn {
         // Convert bill items to cart items with original quantities
         const cartItems: EditableCartItem[] = bill.items.map(item => {
             const medicine = medicines.find(m => m.id === item.medicineId);
+            const tabletsPerStrip = item.tabletsPerStrip || medicine?.tabletsPerStrip || 1;
+
             return {
                 medicineId: item.medicineId,
                 medicineName: item.medicineName,
                 brand: item.brand,
                 quantity: item.quantity,
                 unitPrice: item.unitPrice,
+                tabletsPerStrip,
+                stripQty: item.stripQty || Math.floor(item.quantity / tabletsPerStrip),
+                looseQty: item.looseQty || (item.quantity % tabletsPerStrip),
                 total: item.total,
                 availableStock: medicine?.quantity || 0,
                 originalQuantity: item.quantity // Track for delta calculation
@@ -326,6 +458,9 @@ export function useBilling(): UseBillingReturn {
                 brand: item.brand,
                 quantity: item.quantity,
                 unitPrice: item.unitPrice,
+                tabletsPerStrip: item.tabletsPerStrip || 1,
+                stripQty: item.stripQty || 0,
+                looseQty: item.looseQty || 0,
                 total: item.total
             }));
 
@@ -424,6 +559,7 @@ export function useBilling(): UseBillingReturn {
         addToCart,
         removeFromCart,
         updateCartQuantity,
+        updateStripLooseQty,
         clearCart,
         setDiscount,
         confirmBill,
