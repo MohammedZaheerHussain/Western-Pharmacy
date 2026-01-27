@@ -33,6 +33,7 @@ export interface Medicine {
     brand: string;
     salt: string;
     category: MedicineCategory;
+    schedule?: MedicineSchedule; // Optional drug schedule (OTC, G, H, H1, X, C/C1, E1)
 
     // Tablet/Strip configuration for loose medicine billing
     // tabletsPerStrip: Number of tablets in one strip (default: 1 for non-strip items)
@@ -74,6 +75,20 @@ export const MEDICINE_CATEGORIES: MedicineCategory[] = [
     'Drops',
     'Powder',
     'Other'
+];
+
+// Drug Schedule Types (Indian NDPS & Drug Schedule)
+export type MedicineSchedule = 'OTC' | 'G' | 'H' | 'H1' | 'X' | 'C' | 'C1' | 'E1';
+
+export const MEDICINE_SCHEDULES: { value: MedicineSchedule; label: string; description: string }[] = [
+    { value: 'OTC', label: 'OTC', description: 'Over The Counter - No prescription needed' },
+    { value: 'G', label: 'G', description: 'General - Advisory only' },
+    { value: 'H', label: 'H', description: 'Hospital - Prescription required' },
+    { value: 'H1', label: 'H1', description: 'Restricted - Rx required, 3yr records' },
+    { value: 'X', label: 'X', description: 'Narcotic - Strict control' },
+    { value: 'C', label: 'C', description: 'NDPS Schedule - Special storage' },
+    { value: 'C1', label: 'C1', description: 'NDPS Schedule - Special storage' },
+    { value: 'E1', label: 'E1', description: 'Emergency - Warning required' },
 ];
 
 export type StockStatus = 'ok' | 'low' | 'expiring' | 'out';

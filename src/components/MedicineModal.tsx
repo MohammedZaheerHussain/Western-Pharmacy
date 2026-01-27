@@ -2,7 +2,7 @@
 // Supports multi-batch entry with dynamic batch rows
 
 import { useState, useEffect, useRef } from 'react';
-import { Medicine, MedicineCategory, MEDICINE_CATEGORIES, MedicineLocation } from '../types/medicine';
+import { Medicine, MedicineCategory, MEDICINE_CATEGORIES, MedicineLocation, MedicineSchedule, MEDICINE_SCHEDULES } from '../types/medicine';
 import { X, ChevronDown, ChevronUp, Clock, Plus, Trash2, Package } from 'lucide-react';
 import { generateBatchId } from '../services/storage';
 
@@ -27,6 +27,7 @@ export interface MedicineFormData {
     brand: string;
     salt: string;
     category: MedicineCategory;
+    schedule?: MedicineSchedule; // Optional drug schedule
     tabletsPerStrip: number; // Tablets per strip (for loose medicine billing)
     unitPrice: number;
     location: MedicineLocation;
@@ -54,6 +55,7 @@ const initialFormData: MedicineFormData = {
     brand: '',
     salt: '',
     category: 'Tablet',
+    schedule: undefined, // Optional
     tabletsPerStrip: 10, // Default for tablets
     unitPrice: 0,
     location: { rack: '', shelf: '', drawer: '' },
@@ -112,6 +114,7 @@ export function MedicineModal({ isOpen, medicine, onClose, onSave }: MedicineMod
                     brand: medicine.brand,
                     salt: medicine.salt,
                     category: medicine.category,
+                    schedule: medicine.schedule,
                     tabletsPerStrip: medicine.tabletsPerStrip || 1,
                     unitPrice: medicine.unitPrice || 0,
                     location: { ...medicine.location },
@@ -369,6 +372,28 @@ export function MedicineModal({ isOpen, medicine, onClose, onSave }: MedicineMod
                                         : 'Unit sale (no loose billing)'}
                                 </p>
                             </div>
+                        </div>
+
+                        {/* Schedule (Optional) */}
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                                Schedule
+                                <span className="text-xs text-gray-400 ml-1">(optional)</span>
+                            </label>
+                            <select
+                                value={formData.schedule || ''}
+                                onChange={(e) => updateField('schedule', e.target.value as MedicineSchedule || undefined)}
+                                className="w-full px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-600
+                                         bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100
+                                         focus:border-medical-blue focus:ring-2 focus:ring-medical-blue/20"
+                            >
+                                <option value="">-- Select Schedule --</option>
+                                {MEDICINE_SCHEDULES.map(sch => (
+                                    <option key={sch.value} value={sch.value} title={sch.description}>
+                                        {sch.label} - {sch.description}
+                                    </option>
+                                ))}
+                            </select>
                         </div>
 
                         {/* Unit Price */}
