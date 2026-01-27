@@ -324,7 +324,7 @@ export function BillingPanel({
     isEditMode,
     onAddToCart,
     onRemoveFromCart,
-    onUpdateQuantity,
+    onUpdateQuantity: _onUpdateQuantity, // Kept for backwards compat, use onUpdateStripLooseQty
     onUpdateStripLooseQty,
     onClearCart,
     onSetDiscount,
