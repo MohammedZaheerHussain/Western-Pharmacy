@@ -446,8 +446,8 @@ export function BillingPanel({
 
     return (
         <div className="flex flex-col lg:flex-row gap-6">
-            {/* Left: Medicine Selection */}
-            <div className="flex-1 bg-white dark:bg-gray-900 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden">
+            {/* Left: Medicine Selection - 50% width */}
+            <div className="flex-1 lg:w-1/2 bg-white dark:bg-gray-900 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden flex flex-col">
                 <div className="p-4 border-b border-gray-200 dark:border-gray-700">
                     <div className="flex items-center justify-between mb-3">
                         <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100 flex items-center gap-2">
@@ -510,7 +510,7 @@ export function BillingPanel({
                 </div>
 
                 {/* Medicine List */}
-                <div className="max-h-[400px] overflow-y-auto">
+                <div className="flex-1 overflow-y-auto min-h-[300px] max-h-[60vh]">
                     {filteredMedicines.length === 0 ? (
                         <div className="p-8 text-center text-gray-500 dark:text-gray-400">
                             {search ? 'No medicines found' : 'No medicines in stock'}
@@ -530,8 +530,8 @@ export function BillingPanel({
                 </div>
             </div>
 
-            {/* Right: Cart & Summary */}
-            <div className="lg:w-96 bg-white dark:bg-gray-900 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 flex flex-col">
+            {/* Right: Cart & Summary - 50% width */}
+            <div className="flex-1 lg:w-1/2 bg-white dark:bg-gray-900 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 flex flex-col">
                 <div className="p-4 border-b border-gray-200 dark:border-gray-700">
                     <div className="flex items-center justify-between">
                         <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100 flex items-center gap-2">
