@@ -19,6 +19,7 @@ interface BatchEntry {
     batchNumber: string;
     expiryDate: string;
     quantity: number;
+    unitPrice: number; // Price per strip for this batch
 }
 
 export interface MedicineFormData {
@@ -26,6 +27,7 @@ export interface MedicineFormData {
     brand: string;
     salt: string;
     category: MedicineCategory;
+    tabletsPerStrip: number; // Tablets per strip (for loose medicine billing)
     unitPrice: number;
     location: MedicineLocation;
     // Multi-batch support
@@ -36,13 +38,14 @@ export interface MedicineFormData {
     expiryDate: string;
 }
 
-/** Create empty batch entry */
-function createEmptyBatch(): BatchEntry {
+/** Create empty batch entry with default price from medicine */
+function createEmptyBatch(defaultPrice: number = 0): BatchEntry {
     return {
         id: generateBatchId(),
         batchNumber: '',
         expiryDate: '',
-        quantity: 0
+        quantity: 0,
+        unitPrice: defaultPrice
     };
 }
 
@@ -51,6 +54,7 @@ const initialFormData: MedicineFormData = {
     brand: '',
     salt: '',
     category: 'Tablet',
+    tabletsPerStrip: 10, // Default for tablets
     unitPrice: 0,
     location: { rack: '', shelf: '', drawer: '' },
     batches: [createEmptyBatch()],
@@ -84,12 +88,13 @@ export function MedicineModal({ isOpen, medicine, onClose, onSave }: MedicineMod
                 let batches: BatchEntry[] = [];
 
                 if (medicine.batches && medicine.batches.length > 0) {
-                    // Multi-batch medicine
+                    // Multi-batch medicine - include per-batch prices
                     batches = medicine.batches.map(b => ({
                         id: b.id,
                         batchNumber: b.batchNumber,
                         expiryDate: b.expiryDate,
-                        quantity: b.quantity
+                        quantity: b.quantity,
+                        unitPrice: b.unitPrice || medicine.unitPrice || 0
                     }));
                 } else {
                     // Legacy single-batch medicine - convert to batch entry
@@ -97,7 +102,8 @@ export function MedicineModal({ isOpen, medicine, onClose, onSave }: MedicineMod
                         id: generateBatchId(),
                         batchNumber: medicine.batchNumber || '',
                         expiryDate: medicine.expiryDate || '',
-                        quantity: medicine.quantity || 0
+                        quantity: medicine.quantity || 0,
+                        unitPrice: medicine.unitPrice || 0
                     }];
                 }
 
@@ -106,6 +112,7 @@ export function MedicineModal({ isOpen, medicine, onClose, onSave }: MedicineMod
                     brand: medicine.brand,
                     salt: medicine.salt,
                     category: medicine.category,
+                    tabletsPerStrip: medicine.tabletsPerStrip || 1,
                     unitPrice: medicine.unitPrice || 0,
                     location: { ...medicine.location },
                     batches,
@@ -203,9 +210,13 @@ export function MedicineModal({ isOpen, medicine, onClose, onSave }: MedicineMod
 
     // Batch management
     const addBatch = () => {
+        // Use the last batch's price as default, fallback to form's unitPrice
+        const lastBatchPrice = formData.batches.length > 0
+            ? formData.batches[formData.batches.length - 1].unitPrice
+            : formData.unitPrice;
         setFormData(prev => ({
             ...prev,
-            batches: [...prev.batches, createEmptyBatch()]
+            batches: [...prev.batches, createEmptyBatch(lastBatchPrice)]
         }));
     };
 
@@ -312,13 +323,22 @@ export function MedicineModal({ isOpen, medicine, onClose, onSave }: MedicineMod
                             </div>
                         </div>
 
-                        {/* Category & Unit Price */}
+                        {/* Category & Tablets per Strip */}
                         <div className="grid grid-cols-2 gap-4">
                             <div>
                                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Category</label>
                                 <select
                                     value={formData.category}
-                                    onChange={(e) => updateField('category', e.target.value as MedicineCategory)}
+                                    onChange={(e) => {
+                                        const newCategory = e.target.value as MedicineCategory;
+                                        updateField('category', newCategory);
+                                        // Auto-set tabletsPerStrip based on category
+                                        if (['Tablet', 'Capsule'].includes(newCategory) && formData.tabletsPerStrip === 1) {
+                                            updateField('tabletsPerStrip', 10);
+                                        } else if (!['Tablet', 'Capsule'].includes(newCategory)) {
+                                            updateField('tabletsPerStrip', 1);
+                                        }
+                                    }}
                                     className="w-full px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-600
                                              bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100
                                              focus:border-medical-blue focus:ring-2 focus:ring-medical-blue/20"
@@ -329,19 +349,44 @@ export function MedicineModal({ isOpen, medicine, onClose, onSave }: MedicineMod
                                 </select>
                             </div>
                             <div>
-                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Unit Price (₹)</label>
+                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                                    Tablets per Strip
+                                    <span className="text-xs text-gray-400 ml-1">(optional)</span>
+                                </label>
                                 <input
                                     type="number"
-                                    min="0"
-                                    step="0.01"
-                                    value={formData.unitPrice}
-                                    onChange={(e) => updateField('unitPrice', parseFloat(e.target.value) || 0)}
+                                    min="1"
+                                    value={formData.tabletsPerStrip}
+                                    onChange={(e) => updateField('tabletsPerStrip', parseInt(e.target.value) || 1)}
                                     className="w-full px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-600
                                              bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100
                                              focus:border-medical-blue focus:ring-2 focus:ring-medical-blue/20"
-                                    placeholder="e.g., 12.50"
+                                    placeholder="e.g., 10"
                                 />
+                                <p className="text-xs text-gray-400 mt-0.5">
+                                    {formData.tabletsPerStrip > 1
+                                        ? `Per tablet: ₹${(formData.unitPrice / formData.tabletsPerStrip).toFixed(2)}`
+                                        : 'Unit sale (no loose billing)'}
+                                </p>
                             </div>
+                        </div>
+
+                        {/* Unit Price */}
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                                Unit Price (₹/strip)
+                            </label>
+                            <input
+                                type="number"
+                                min="0"
+                                step="0.01"
+                                value={formData.unitPrice}
+                                onChange={(e) => updateField('unitPrice', parseFloat(e.target.value) || 0)}
+                                className="w-full px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-600
+                                         bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100
+                                         focus:border-medical-blue focus:ring-2 focus:ring-medical-blue/20"
+                                placeholder="e.g., 12.50"
+                            />
                         </div>
 
                         {/* Location */}
@@ -404,9 +449,10 @@ export function MedicineModal({ isOpen, medicine, onClose, onSave }: MedicineMod
                                 <div className="p-4 space-y-3 bg-white dark:bg-gray-900">
                                     {/* Batch Headers */}
                                     <div className="grid grid-cols-12 gap-2 text-xs font-medium text-gray-500 dark:text-gray-400 px-1">
-                                        <div className="col-span-4">Batch Number</div>
-                                        <div className="col-span-4">Expiry Date</div>
-                                        <div className="col-span-3">Quantity</div>
+                                        <div className="col-span-3">Batch Number</div>
+                                        <div className="col-span-3">Expiry Date</div>
+                                        <div className="col-span-2">Quantity</div>
+                                        <div className="col-span-3">Price (₹/strip)</div>
                                         <div className="col-span-1"></div>
                                     </div>
 
@@ -417,7 +463,7 @@ export function MedicineModal({ isOpen, medicine, onClose, onSave }: MedicineMod
                                                 type="text"
                                                 value={batch.batchNumber}
                                                 onChange={(e) => updateBatch(batch.id, 'batchNumber', e.target.value)}
-                                                className="col-span-4 px-2 py-1.5 text-sm rounded-lg border border-gray-200 dark:border-gray-600
+                                                className="col-span-3 px-2 py-1.5 text-sm rounded-lg border border-gray-200 dark:border-gray-600
                                                          bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100
                                                          focus:border-medical-blue focus:ring-1 focus:ring-medical-blue/20"
                                                 placeholder={`Batch ${index + 1}`}
@@ -426,7 +472,7 @@ export function MedicineModal({ isOpen, medicine, onClose, onSave }: MedicineMod
                                                 type="date"
                                                 value={batch.expiryDate}
                                                 onChange={(e) => updateBatch(batch.id, 'expiryDate', e.target.value)}
-                                                className="col-span-4 px-2 py-1.5 text-sm rounded-lg border border-gray-200 dark:border-gray-600
+                                                className="col-span-3 px-2 py-1.5 text-sm rounded-lg border border-gray-200 dark:border-gray-600
                                                          bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100
                                                          focus:border-medical-blue focus:ring-1 focus:ring-medical-blue/20"
                                             />
@@ -435,10 +481,21 @@ export function MedicineModal({ isOpen, medicine, onClose, onSave }: MedicineMod
                                                 min="0"
                                                 value={batch.quantity}
                                                 onChange={(e) => updateBatch(batch.id, 'quantity', parseInt(e.target.value) || 0)}
-                                                className="col-span-3 px-2 py-1.5 text-sm rounded-lg border border-gray-200 dark:border-gray-600
+                                                className="col-span-2 px-2 py-1.5 text-sm rounded-lg border border-gray-200 dark:border-gray-600
                                                          bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100
                                                          focus:border-medical-blue focus:ring-1 focus:ring-medical-blue/20"
                                                 placeholder="Qty"
+                                            />
+                                            <input
+                                                type="number"
+                                                min="0"
+                                                step="0.01"
+                                                value={batch.unitPrice}
+                                                onChange={(e) => updateBatch(batch.id, 'unitPrice', parseFloat(e.target.value) || 0)}
+                                                className="col-span-3 px-2 py-1.5 text-sm rounded-lg border border-gray-200 dark:border-gray-600
+                                                         bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100
+                                                         focus:border-medical-blue focus:ring-1 focus:ring-medical-blue/20"
+                                                placeholder="₹ Price"
                                             />
                                             <button
                                                 type="button"

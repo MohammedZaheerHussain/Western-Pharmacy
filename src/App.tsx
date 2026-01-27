@@ -382,6 +382,7 @@ function App() {
                         onAddToCart={billing.addToCart}
                         onRemoveFromCart={billing.removeFromCart}
                         onUpdateQuantity={billing.updateCartQuantity}
+                        onUpdateStripLooseQty={billing.updateStripLooseQty}
                         onClearCart={billing.clearCart}
                         onSetDiscount={billing.setDiscount}
                         onSetCustomerName={billing.setCustomerName}

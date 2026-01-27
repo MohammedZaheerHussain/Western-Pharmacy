@@ -29,7 +29,7 @@ interface PharmacyDB extends DBSchema {
 }
 
 const DB_NAME = 'western-pharmacy-db';
-const DB_VERSION = 2;
+const DB_VERSION = 4; // v4: Added per-batch pricing
 
 let dbInstance: IDBPDatabase<PharmacyDB> | null = null;
 
@@ -41,7 +41,7 @@ async function getDB(): Promise<IDBPDatabase<PharmacyDB>> {
     if (dbInstance) return dbInstance;
 
     dbInstance = await openDB<PharmacyDB>(DB_NAME, DB_VERSION, {
-        upgrade(db, oldVersion) {
+        upgrade(db, oldVersion, _newVersion, transaction) {
             // Version 1: medicines store
             if (oldVersion < 1) {
                 const medicineStore = db.createObjectStore('medicines', { keyPath: 'id' });
@@ -57,6 +57,81 @@ async function getDB(): Promise<IDBPDatabase<PharmacyDB>> {
                 billStore.createIndex('by-number', 'billNumber');
 
                 db.createObjectStore('counters', { keyPath: 'id' });
+            }
+
+            // Version 3: tabletsPerStrip migration for loose medicine billing
+            // Converts existing stock from strips to tablets
+            if (oldVersion < 3) {
+                const DEFAULT_TABLETS_PER_STRIP = 10;
+                const medicinesStore = transaction.objectStore('medicines');
+
+                // We need to migrate all existing medicines
+                medicinesStore.openCursor().then(function migrateMedicine(cursor): void {
+                    if (!cursor) return;
+
+                    const medicine = cursor.value;
+                    // Only migrate if tabletsPerStrip is not already set
+                    if (medicine.tabletsPerStrip === undefined) {
+                        const tabletsPerStrip = ['Tablet', 'Capsule'].includes(medicine.category)
+                            ? DEFAULT_TABLETS_PER_STRIP
+                            : 1;
+
+                        // Convert quantity from strips to tablets
+                        const newQuantity = medicine.quantity * tabletsPerStrip;
+
+                        // Also update batch quantities if present (include unitPrice for v4 compatibility)
+                        const updatedBatches = medicine.batches?.map((batch: { id: string; batchNumber: string; expiryDate: string; quantity: number; unitPrice?: number }) => ({
+                            ...batch,
+                            quantity: batch.quantity * tabletsPerStrip,
+                            unitPrice: batch.unitPrice || medicine.unitPrice || 0
+                        }));
+
+                        cursor.update({
+                            ...medicine,
+                            tabletsPerStrip,
+                            quantity: newQuantity,
+                            batches: updatedBatches || medicine.batches
+                        });
+                    }
+
+                    cursor.continue().then(migrateMedicine);
+                });
+            }
+
+            // Version 4: Per-batch pricing migration
+            // Copies medicine-level unitPrice to each batch that doesn't have one
+            if (oldVersion < 4 && oldVersion >= 3) {
+                const medicinesStore = transaction.objectStore('medicines');
+
+                medicinesStore.openCursor().then(function migrateBatchPrices(cursor): void {
+                    if (!cursor) return;
+
+                    const medicine = cursor.value;
+                    const medicinePrice = medicine.unitPrice || 0;
+
+                    // Check if any batch needs price migration
+                    if (medicine.batches && medicine.batches.length > 0) {
+                        const needsMigration = medicine.batches.some(
+                            (batch: { unitPrice?: number }) => batch.unitPrice === undefined
+                        );
+
+                        if (needsMigration) {
+                            const updatedBatches = medicine.batches.map(
+                                (batch: { id: string; batchNumber: string; expiryDate: string; quantity: number; unitPrice?: number }) => ({
+                                    ...batch,
+                                    unitPrice: batch.unitPrice !== undefined ? batch.unitPrice : medicinePrice
+                                })
+                            );
+
+                            cursor.update({
+                                ...medicine,
+                                batches: updatedBatches
+                            });
+                        }
+                    }
+
+                    cursor.continue().then(migrateBatchPrices);
+                });
             }
         },
     });
@@ -120,15 +195,47 @@ export function isMultiBatch(medicine: Medicine): boolean {
  * Call this before saving to keep legacy fields in sync
  */
 export function normalizeMedicine(medicine: Medicine): Medicine {
-    if (medicine.batches && medicine.batches.length > 0) {
+    // Ensure tabletsPerStrip has a default value
+    const normalized = {
+        ...medicine,
+        tabletsPerStrip: medicine.tabletsPerStrip || 1
+    };
+
+    if (normalized.batches && normalized.batches.length > 0) {
         return {
-            ...medicine,
-            quantity: getTotalQuantity(medicine),
-            expiryDate: getEarliestExpiry(medicine),
-            batchNumber: medicine.batches.length === 1 ? medicine.batches[0].batchNumber : ''
+            ...normalized,
+            quantity: getTotalQuantity(normalized),
+            expiryDate: getEarliestExpiry(normalized),
+            batchNumber: normalized.batches.length === 1 ? normalized.batches[0].batchNumber : ''
         };
     }
-    return medicine;
+    return normalized;
+}
+
+/**
+ * Get price per tablet for loose medicine billing
+ * Returns unitPrice if tabletsPerStrip is 1
+ */
+export function getTabletPrice(medicine: Medicine): number {
+    const tabletsPerStrip = medicine.tabletsPerStrip || 1;
+    if (tabletsPerStrip <= 1) return medicine.unitPrice;
+    return medicine.unitPrice / tabletsPerStrip;
+}
+
+/**
+ * Calculate line total for strip + loose tablet billing
+ */
+export function calculateLineTotal(
+    stripQty: number,
+    looseQty: number,
+    unitPrice: number,
+    tabletsPerStrip: number
+): number {
+    const stripTotal = stripQty * unitPrice;
+    const looseTotal = tabletsPerStrip > 1
+        ? looseQty * (unitPrice / tabletsPerStrip)
+        : 0;
+    return stripTotal + looseTotal;
 }
 
 /** Create audit entry */
@@ -646,7 +753,8 @@ export async function seedInitialData(): Promise<void> {
             brand: 'Crocin',
             salt: 'Paracetamol',
             category: 'Tablet',
-            quantity: 150,
+            tabletsPerStrip: 10,
+            quantity: 150, // 15 strips × 10 tablets
             unitPrice: 12.50,
             location: { rack: 'A', shelf: '1', drawer: '1' },
             batchNumber: 'CR2024001',
@@ -657,7 +765,8 @@ export async function seedInitialData(): Promise<void> {
             brand: 'Mox',
             salt: 'Amoxicillin',
             category: 'Capsule',
-            quantity: 8,
+            tabletsPerStrip: 10,
+            quantity: 80, // 8 strips × 10 tablets
             unitPrice: 28.00,
             location: { rack: 'A', shelf: '2' },
             batchNumber: 'MX2024002',
@@ -668,7 +777,8 @@ export async function seedInitialData(): Promise<void> {
             brand: 'Zyrtec',
             salt: 'Cetirizine',
             category: 'Tablet',
-            quantity: 45,
+            tabletsPerStrip: 10,
+            quantity: 450, // 45 strips × 10 tablets
             unitPrice: 8.50,
             location: { rack: 'B', shelf: '1', drawer: '2' },
             batchNumber: 'ZY2024003',
@@ -679,6 +789,7 @@ export async function seedInitialData(): Promise<void> {
             brand: 'Omez',
             salt: 'Omeprazole',
             category: 'Capsule',
+            tabletsPerStrip: 15,
             quantity: 0,
             unitPrice: 15.00,
             location: { rack: 'B', shelf: '2' },
@@ -690,6 +801,7 @@ export async function seedInitialData(): Promise<void> {
             brand: 'Benadryl',
             salt: 'Diphenhydramine',
             category: 'Syrup',
+            tabletsPerStrip: 1, // Unit sale
             quantity: 25,
             unitPrice: 85.00,
             location: { rack: 'C', shelf: '1' },
@@ -701,6 +813,7 @@ export async function seedInitialData(): Promise<void> {
             brand: 'Lantus',
             salt: 'Insulin Glargine',
             category: 'Injection',
+            tabletsPerStrip: 1, // Unit sale
             quantity: 12,
             unitPrice: 450.00,
             location: { rack: 'D', shelf: '1', drawer: '1' },
@@ -712,6 +825,7 @@ export async function seedInitialData(): Promise<void> {
             brand: 'Betadine',
             salt: 'Povidone-iodine',
             category: 'Cream',
+            tabletsPerStrip: 1, // Unit sale
             quantity: 30,
             unitPrice: 65.00,
             location: { rack: 'C', shelf: '2' },
@@ -723,6 +837,7 @@ export async function seedInitialData(): Promise<void> {
             brand: 'Refresh',
             salt: 'Carboxymethylcellulose',
             category: 'Drops',
+            tabletsPerStrip: 1, // Unit sale
             quantity: 5,
             unitPrice: 120.00,
             location: { rack: 'D', shelf: '2' },
@@ -734,6 +849,7 @@ export async function seedInitialData(): Promise<void> {
             brand: 'Electral',
             salt: 'Oral Rehydration Salts',
             category: 'Powder',
+            tabletsPerStrip: 1, // Unit sale
             quantity: 100,
             unitPrice: 22.00,
             location: { rack: 'A', shelf: '3' },
@@ -745,7 +861,8 @@ export async function seedInitialData(): Promise<void> {
             brand: 'Glycomet',
             salt: 'Metformin',
             category: 'Tablet',
-            quantity: 3,
+            tabletsPerStrip: 10,
+            quantity: 30, // 3 strips × 10 tablets
             unitPrice: 18.00,
             location: { rack: 'B', shelf: '3', drawer: '1' },
             batchNumber: 'GM2024010',
@@ -756,7 +873,8 @@ export async function seedInitialData(): Promise<void> {
             brand: 'Azee',
             salt: 'Azithromycin',
             category: 'Tablet',
-            quantity: 20,
+            tabletsPerStrip: 6, // Azithromycin typically comes in 6-pack
+            quantity: 120, // 20 strips × 6 tablets
             unitPrice: 42.00,
             location: { rack: 'A', shelf: '2', drawer: '2' },
             batchNumber: 'AZ2024011',
@@ -767,7 +885,8 @@ export async function seedInitialData(): Promise<void> {
             brand: 'Pan',
             salt: 'Pantoprazole',
             category: 'Tablet',
-            quantity: 60,
+            tabletsPerStrip: 10,
+            quantity: 600, // 60 strips × 10 tablets
             unitPrice: 14.00,
             location: { rack: 'B', shelf: '1' },
             batchNumber: 'PN2024012',
@@ -856,11 +975,18 @@ export function parseCSV(csvContent: string): {
         if (errors.length > 0) {
             invalid.push({ row: i + 1, data: rowData, errors });
         } else {
+            // Auto-detect tabletsPerStrip: use CSV value if provided, otherwise default based on category
+            const tabletsPerStripValue = parseInt(rowData['tablets per strip'] || rowData['tabletsperstrip'] || '0', 10);
+            const tabletsPerStrip = tabletsPerStripValue > 0
+                ? tabletsPerStripValue
+                : (['Tablet', 'Capsule'].includes(category) ? 10 : 1);
+
             valid.push({
                 name: name.trim(),
                 brand: (rowData['brand'] || '').trim(),
                 salt: (rowData['salt'] || rowData['salt/composition'] || rowData['composition'] || '').trim(),
                 category,
+                tabletsPerStrip,
                 quantity,
                 unitPrice: isNaN(unitPrice) ? 0 : unitPrice,
                 location: {

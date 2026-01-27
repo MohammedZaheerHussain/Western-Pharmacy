@@ -18,12 +18,13 @@ export interface MedicineLocation {
     drawer?: string;
 }
 
-/** Individual batch with its own batch number, expiry, and quantity */
+/** Individual batch with its own batch number, expiry, quantity, and price */
 export interface Batch {
     id: string;
     batchNumber: string;
     expiryDate: string;
     quantity: number;
+    unitPrice: number; // Price per strip for this specific batch
 }
 
 export interface Medicine {
@@ -33,16 +34,21 @@ export interface Medicine {
     salt: string;
     category: MedicineCategory;
 
+    // Tablet/Strip configuration for loose medicine billing
+    // tabletsPerStrip: Number of tablets in one strip (default: 1 for non-strip items)
+    // When tabletsPerStrip > 1, quantity is tracked in TABLETS, unitPrice is per STRIP
+    tabletsPerStrip: number;
+
     // Multi-batch support (new medicines)
     batches?: Batch[];
 
     // Legacy single-batch fields (for backward compatibility with existing data)
     // If batches[] exists, these are computed/derived values
-    quantity: number; // Total quantity (sum of all batches or legacy single value)
+    quantity: number; // Total quantity in TABLETS (smallest unit)
     batchNumber: string; // Primary batch number or empty if multi-batch
     expiryDate: string; // Earliest expiry date
 
-    unitPrice: number; // Price in INR
+    unitPrice: number; // Price per STRIP in INR
     location: MedicineLocation;
     createdAt: string;
     updatedAt: string;
@@ -115,9 +121,12 @@ export interface BillItem {
     brand: string;
     batchId?: string; // Which batch was sold from (for multi-batch medicines)
     batchNumber?: string; // Batch number for display on receipt
-    quantity: number;
-    unitPrice: number;
-    total: number;
+    quantity: number; // Total tablets sold
+    unitPrice: number; // Price per strip
+    tabletsPerStrip: number; // Tablets per strip (for price calculation)
+    stripQty: number; // Full strips sold
+    looseQty: number; // Loose tablets sold (0 to tabletsPerStrip-1)
+    total: number; // (stripQty × unitPrice) + (looseQty × unitPrice/tabletsPerStrip)
 }
 
 /** Complete bill record */
@@ -136,5 +145,5 @@ export interface Bill {
 
 /** Cart item for billing (extends BillItem with available stock) */
 export interface CartItem extends BillItem {
-    availableStock: number;
+    availableStock: number; // Available stock in tablets
 }
