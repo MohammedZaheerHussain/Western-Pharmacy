@@ -150,6 +150,7 @@ export interface Bill {
     billNumber: string; // Format: "BILL-0001"
     customerName?: string; // Optional customer name
     customerPhone?: string; // Optional customer phone
+    doctorName?: string; // Optional prescribing doctor name
     items: BillItem[];
     subtotal: number;
     discountPercent: number;

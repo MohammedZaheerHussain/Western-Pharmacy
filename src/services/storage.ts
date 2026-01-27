@@ -470,7 +470,8 @@ export async function createBill(
     items: BillItem[],
     discountPercent: number = 0,
     customerName?: string,
-    customerPhone?: string
+    customerPhone?: string,
+    doctorName?: string
 ): Promise<Bill> {
     const db = await getDB();
 
@@ -527,6 +528,7 @@ export async function createBill(
         billNumber,
         customerName: customerName?.trim() || undefined,
         customerPhone: customerPhone?.trim() || undefined,
+        doctorName: doctorName?.trim() || undefined,
         items,
         subtotal,
         discountPercent: validDiscount,
@@ -551,7 +553,8 @@ export async function updateBill(
     discountPercent: number = 0,
     originalItems: BillItem[],
     customerName?: string,
-    customerPhone?: string
+    customerPhone?: string,
+    doctorName?: string
 ): Promise<Bill> {
     const db = await getDB();
 
@@ -655,6 +658,7 @@ export async function updateBill(
         ...existingBill,
         customerName: customerName?.trim() || existingBill.customerName,
         customerPhone: customerPhone?.trim() || existingBill.customerPhone,
+        doctorName: doctorName?.trim() || existingBill.doctorName,
         items: activeItems,
         subtotal,
         discountPercent: validDiscount,

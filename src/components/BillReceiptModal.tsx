@@ -164,6 +164,9 @@ export function BillReceiptModal({ bill, onClose }: BillReceiptModalProps) {
                                 {bill.customerPhone && (
                                     <p><span className="font-semibold">Phone:</span> {bill.customerPhone}</p>
                                 )}
+                                {bill.doctorName && (
+                                    <p><span className="font-semibold">Dr. Name:</span> {bill.doctorName}</p>
+                                )}
                             </div>
                             <div className="text-right">
                                 <p><span className="font-semibold">Bill Date:</span> {formatDate(bill.createdAt)}</p>

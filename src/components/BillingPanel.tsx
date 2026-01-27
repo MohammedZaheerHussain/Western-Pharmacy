@@ -283,6 +283,7 @@ interface BillingPanelProps {
     grandTotal: number;
     customerName: string;
     customerPhone: string;
+    doctorName: string;
     bills: Bill[];
     error: string | null;
     successMessage: string | null;
@@ -299,6 +300,7 @@ interface BillingPanelProps {
     onSetDiscount: (percent: number) => void;
     onSetCustomerName: (name: string) => void;
     onSetCustomerPhone: (phone: string) => void;
+    onSetDoctorName: (name: string) => void;
     onConfirmBill: () => Promise<Bill>;
     onLoadBills: () => Promise<void>;
     onExportBills: () => void;
@@ -318,6 +320,7 @@ export function BillingPanel({
     grandTotal,
     customerName,
     customerPhone,
+    doctorName,
     bills,
     error,
     successMessage,
@@ -334,6 +337,7 @@ export function BillingPanel({
     onSetDiscount,
     onSetCustomerName,
     onSetCustomerPhone,
+    onSetDoctorName,
     onConfirmBill,
     onLoadBills,
     onExportBills,
@@ -606,6 +610,14 @@ export function BillingPanel({
                                              bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 text-sm"
                                 />
                             </div>
+                            <input
+                                type="text"
+                                value={doctorName}
+                                onChange={(e) => onSetDoctorName(e.target.value)}
+                                placeholder="Doctor Name (Optional)"
+                                className="w-full px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-600 
+                                         bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 text-sm"
+                            />
                         </div>
                     )}
 

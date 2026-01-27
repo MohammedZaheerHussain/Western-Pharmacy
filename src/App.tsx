@@ -389,6 +389,7 @@ function App() {
                         grandTotal={billing.grandTotal}
                         customerName={billing.customerName}
                         customerPhone={billing.customerPhone}
+                        doctorName={billing.doctorName}
                         bills={billing.bills}
                         error={billing.error}
                         successMessage={billing.successMessage}
@@ -405,6 +406,7 @@ function App() {
                         onSetDiscount={billing.setDiscount}
                         onSetCustomerName={billing.setCustomerName}
                         onSetCustomerPhone={billing.setCustomerPhone}
+                        onSetDoctorName={billing.setDoctorName}
                         onConfirmBill={billing.confirmBill}
                         onLoadBills={billing.loadBills}
                         onExportBills={billing.exportBills}

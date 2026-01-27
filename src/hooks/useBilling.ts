@@ -24,8 +24,10 @@ interface UseBillingReturn {
     // Customer info (optional)
     customerName: string;
     customerPhone: string;
+    doctorName: string;
     setCustomerName: (name: string) => void;
     setCustomerPhone: (phone: string) => void;
+    setDoctorName: (name: string) => void;
 
     // Edit mode state
     editingBill: Bill | null;
@@ -70,6 +72,7 @@ export function useBilling(): UseBillingReturn {
     const [discountPercent, setDiscountPercent] = useState(0);
     const [customerName, setCustomerName] = useState('');
     const [customerPhone, setCustomerPhone] = useState('');
+    const [doctorName, setDoctorName] = useState('');
     const [bills, setBills] = useState<Bill[]>([]);
     const [error, setError] = useState<string | null>(null);
     const [successMessage, setSuccessMessage] = useState<string | null>(null);
@@ -380,6 +383,7 @@ export function useBilling(): UseBillingReturn {
         setDiscountPercent(0);
         setCustomerName('');
         setCustomerPhone('');
+        setDoctorName('');
         setError(null);
         setEditingBill(null);
     }, []);
@@ -392,6 +396,7 @@ export function useBilling(): UseBillingReturn {
         setDiscountPercent(0);
         setCustomerName('');
         setCustomerPhone('');
+        setDoctorName('');
         setError(null);
         setEditingBill(null);
     }, []);
@@ -469,11 +474,11 @@ export function useBilling(): UseBillingReturn {
             if (isEditMode && editingBill) {
                 // Update existing bill with delta calculations
                 const originalItems = editingBill.items;
-                bill = await updateBill(editingBill.id, billItems, discountPercent, originalItems, customerName, customerPhone);
+                bill = await updateBill(editingBill.id, billItems, discountPercent, originalItems, customerName, customerPhone, doctorName);
                 setSuccessMessage(`Bill ${bill.billNumber} updated successfully!`);
             } else {
                 // Create new bill
-                bill = await createBill(billItems.filter(i => i.quantity > 0), discountPercent, customerName, customerPhone);
+                bill = await createBill(billItems.filter(i => i.quantity > 0), discountPercent, customerName, customerPhone, doctorName);
                 setSuccessMessage(`Bill ${bill.billNumber} created! Total: ₹${bill.grandTotal.toFixed(2)}`);
             }
 
@@ -494,7 +499,7 @@ export function useBilling(): UseBillingReturn {
         } finally {
             setLoading(false);
         }
-    }, [cart, discountPercent, customerName, customerPhone, isEditMode, editingBill, clearCart]);
+    }, [cart, discountPercent, customerName, customerPhone, doctorName, isEditMode, editingBill, clearCart]);
 
     /**
      * Load bill history from storage
@@ -552,8 +557,10 @@ export function useBilling(): UseBillingReturn {
         grandTotal,
         customerName,
         customerPhone,
+        doctorName,
         setCustomerName,
         setCustomerPhone,
+        setDoctorName,
         editingBill,
         isEditMode,
         addToCart,
