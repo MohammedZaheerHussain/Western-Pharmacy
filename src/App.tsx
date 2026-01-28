@@ -21,11 +21,15 @@ import {
     BillingPanel,
     SettingsModal,
     loadSettings,
+    initializeSettingsFromUserMetadata,
     PharmacySettings,
     BackupModal
 } from './components';
+import { LoginPage } from './components/LoginPage';
+import { AdminApp } from './pages/AdminApp';
 import { InstallButton, InstallSuccessToast } from './components/InstallButton';
-import { Plus, Pill, Package, Receipt, Sun, Moon, Settings, HardDrive } from 'lucide-react';
+import { Plus, Package, Receipt, Sun, Moon, Settings, HardDrive, LogOut } from 'lucide-react';
+import { getCurrentUser, signOut, onAuthStateChange, isAuthEnabled, AuthUser, isSuperAdmin } from './services/auth';
 
 type ViewMode = 'inventory' | 'billing';
 type Theme = 'light' | 'dark' | 'system';
@@ -98,6 +102,10 @@ function App() {
     const [backupModal, setBackupModal] = useState(false);
     const [settings, setSettings] = useState<PharmacySettings>(loadSettings);
 
+    // Auth state
+    const [user, setUser] = useState<AuthUser | null>(null);
+    const [authLoading, setAuthLoading] = useState(true);
+
     // Apply theme on mount and changes
     useEffect(() => {
         applyTheme(theme);
@@ -115,6 +123,48 @@ function App() {
         mediaQuery.addEventListener('change', handleChange);
         return () => mediaQuery.removeEventListener('change', handleChange);
     }, [theme]);
+
+    // Check auth on mount and listen for changes
+    useEffect(() => {
+        // If auth not enabled, skip auth check
+        if (!isAuthEnabled()) {
+            setAuthLoading(false);
+            return;
+        }
+
+        // Check current session
+        getCurrentUser().then(u => {
+            setUser(u);
+            if (u?.pharmacyName) {
+                // Initialize settings with pharmacy name
+                const newSettings = initializeSettingsFromUserMetadata(u.pharmacyName);
+                setSettings(newSettings);
+            }
+            setAuthLoading(false);
+        });
+
+        // Listen for auth changes
+        const { unsubscribe } = onAuthStateChange((u) => {
+            setUser(u);
+            if (u?.pharmacyName) {
+                // Initialize settings with pharmacy name
+                const newSettings = initializeSettingsFromUserMetadata(u.pharmacyName);
+                setSettings(newSettings);
+            }
+        });
+
+        return () => unsubscribe();
+    }, []);
+
+    // Handle logout
+    const handleLogout = async () => {
+        try {
+            await signOut();
+            setUser(null);
+        } catch (err) {
+            console.error('Logout failed:', err);
+        }
+    };
 
     // Keyboard shortcuts
     useEffect(() => {
@@ -228,6 +278,28 @@ function App() {
         billing.loadBillForEdit(bill, allMedicines);
     }, [billing, allMedicines]);
 
+    // Auth loading state
+    if (authLoading) {
+        return (
+            <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-900">
+                <div className="text-center">
+                    <div className="w-12 h-12 border-4 border-medical-blue border-t-transparent rounded-full animate-spin mx-auto mb-4" />
+                    <p className="text-gray-600 dark:text-gray-400">Checking authentication...</p>
+                </div>
+            </div>
+        );
+    }
+
+    // Login gate - show login page if auth is enabled and user not logged in
+    if (isAuthEnabled() && !user) {
+        return <LoginPage onLogin={() => getCurrentUser().then(setUser)} />;
+    }
+
+    // Role-based routing - super admin sees admin dashboard
+    if (isSuperAdmin(user)) {
+        return <AdminApp user={user!} onLogout={() => setUser(null)} />;
+    }
+
     if (loading) {
         return (
             <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-900">
@@ -246,12 +318,12 @@ function App() {
                 <div className="max-w-7xl mx-auto px-4 sm:px-6 py-4">
                     <div className="flex items-center justify-between mb-4">
                         <div className="flex items-center gap-3">
-                            <div className="p-2 bg-medical-blue rounded-xl">
-                                <Pill className="text-white" size={24} />
+                            <div className="w-10 h-10 bg-white rounded-xl shadow-sm p-1">
+                                <img src="/billova-logo.png" alt="Billova" className="w-full h-full object-contain" />
                             </div>
                             <div>
-                                <h1 className="text-xl font-bold text-gray-900 dark:text-gray-100">Weston Pharmacy</h1>
-                                <p className="text-sm text-gray-500 dark:text-gray-400">Medicine Inventory</p>
+                                <h1 className="text-xl font-bold text-gray-900 dark:text-gray-100">Billova Medical</h1>
+                                <p className="text-sm text-gray-500 dark:text-gray-400">{user?.pharmacyName || 'Pharmacy Billing'}</p>
                             </div>
                         </div>
 
@@ -277,6 +349,19 @@ function App() {
                             >
                                 <Settings size={20} />
                             </button>
+
+                            {/* Logout Button - only show if auth enabled */}
+                            {isAuthEnabled() && user && (
+                                <button
+                                    onClick={handleLogout}
+                                    className="p-2 text-gray-600 dark:text-gray-400 hover:bg-red-100 hover:text-red-600
+                                             dark:hover:bg-red-900/30 dark:hover:text-red-400 rounded-lg transition-colors"
+                                    title={`Logout (${user.email})`}
+                                    aria-label="Logout"
+                                >
+                                    <LogOut size={20} />
+                                </button>
+                            )}
 
                             {/* Theme Toggle */}
                             <button

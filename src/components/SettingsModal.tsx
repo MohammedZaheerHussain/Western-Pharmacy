@@ -83,6 +83,7 @@ const DEFAULT_SETTINGS: PharmacySettings = {
 };
 
 const SETTINGS_KEY = 'pharmacy-settings';
+const SETTINGS_INITIALIZED_KEY = 'pharmacy-settings-initialized';
 
 /** Load settings from localStorage */
 export function loadSettings(): PharmacySettings {
@@ -101,6 +102,36 @@ export function loadSettings(): PharmacySettings {
         console.error('Failed to load settings:', e);
     }
     return DEFAULT_SETTINGS;
+}
+
+/** Initialize settings with user's pharmacy data (called once on first login) */
+export function initializeSettingsFromUserMetadata(pharmacyName?: string): PharmacySettings {
+    // Check if already initialized
+    const isInitialized = localStorage.getItem(SETTINGS_INITIALIZED_KEY);
+    const currentSettings = loadSettings();
+
+    if (isInitialized) {
+        return currentSettings; // Already set up, don't override
+    }
+
+    // First time - pre-fill with admin-provided pharmacy name
+    if (pharmacyName) {
+        const initializedSettings: PharmacySettings = {
+            ...currentSettings,
+            shop: {
+                ...currentSettings.shop,
+                name: pharmacyName
+            }
+        };
+
+        // Save and mark as initialized
+        localStorage.setItem(SETTINGS_KEY, JSON.stringify(initializedSettings));
+        localStorage.setItem(SETTINGS_INITIALIZED_KEY, 'true');
+
+        return initializedSettings;
+    }
+
+    return currentSettings;
 }
 
 /** Save settings to localStorage */

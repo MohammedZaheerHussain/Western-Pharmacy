@@ -8,34 +8,28 @@ export default defineConfig({
     react(),
     VitePWA({
       registerType: 'autoUpdate',
-      includeAssets: ['favicon.svg', 'icon.svg', 'icon-maskable.svg'],
+      includeAssets: ['billova-logo.png'],
       manifest: {
-        name: 'Weston Pharmacy',
-        short_name: 'WP',
-        description: 'Offline medicine inventory and billing for small pharmacies',
+        name: 'Billova Medical Billing',
+        short_name: 'Billova',
+        description: 'Pharmacy Inventory & Billing System',
         start_url: '/',
         display: 'standalone',
         background_color: '#ffffff',
-        theme_color: '#3B82F6', // Medical blue
+        theme_color: '#7C3AED', // Purple to match logo
         orientation: 'any',
         icons: [
           {
-            src: '/icon.svg',
+            src: '/billova-logo.png',
             sizes: '192x192',
-            type: 'image/svg+xml',
+            type: 'image/png',
             purpose: 'any'
           },
           {
-            src: '/icon.svg',
+            src: '/billova-logo.png',
             sizes: '512x512',
-            type: 'image/svg+xml',
-            purpose: 'any'
-          },
-          {
-            src: '/icon-maskable.svg',
-            sizes: '512x512',
-            type: 'image/svg+xml',
-            purpose: 'maskable'
+            type: 'image/png',
+            purpose: 'any maskable'
           }
         ]
       },
