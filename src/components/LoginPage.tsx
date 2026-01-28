@@ -48,7 +48,7 @@ export function LoginPage({ onLogin }: LoginPageProps) {
                         <Pill className="text-blue-600" size={32} />
                     </div>
                     <h1 className="text-3xl font-bold text-white mb-2">
-                        Pharmacy Billing
+                        Billova Medical Billing
                     </h1>
                     <p className="text-blue-200">
                         Sign in to access your pharmacy dashboard
