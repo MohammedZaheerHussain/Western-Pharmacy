@@ -21,6 +21,7 @@ import {
     BillingPanel,
     SettingsModal,
     loadSettings,
+    initializeSettingsFromUserMetadata,
     PharmacySettings,
     BackupModal
 } from './components';
@@ -134,12 +135,22 @@ function App() {
         // Check current session
         getCurrentUser().then(u => {
             setUser(u);
+            if (u?.pharmacyName) {
+                // Initialize settings with pharmacy name
+                const newSettings = initializeSettingsFromUserMetadata(u.pharmacyName);
+                setSettings(newSettings);
+            }
             setAuthLoading(false);
         });
 
         // Listen for auth changes
         const { unsubscribe } = onAuthStateChange((u) => {
             setUser(u);
+            if (u?.pharmacyName) {
+                // Initialize settings with pharmacy name
+                const newSettings = initializeSettingsFromUserMetadata(u.pharmacyName);
+                setSettings(newSettings);
+            }
         });
 
         return () => unsubscribe();

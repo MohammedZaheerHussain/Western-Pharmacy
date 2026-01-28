@@ -77,6 +77,7 @@ const DEFAULT_SETTINGS: PharmacySettings = {
 };
 
 const SETTINGS_KEY = 'pharmacy-settings';
+const SETTINGS_INITIALIZED_KEY = 'pharmacy-settings-initialized';
 
 /** Load settings from localStorage */
 export function loadSettings(): PharmacySettings {
@@ -95,6 +96,36 @@ export function loadSettings(): PharmacySettings {
         console.error('Failed to load settings:', e);
     }
     return DEFAULT_SETTINGS;
+}
+
+/** Initialize settings with user's pharmacy data (called once on first login) */
+export function initializeSettingsFromUserMetadata(pharmacyName?: string): PharmacySettings {
+    // Check if already initialized
+    const isInitialized = localStorage.getItem(SETTINGS_INITIALIZED_KEY);
+    const currentSettings = loadSettings();
+
+    if (isInitialized) {
+        return currentSettings; // Already set up, don't override
+    }
+
+    // First time - pre-fill with admin-provided pharmacy name
+    if (pharmacyName) {
+        const initializedSettings: PharmacySettings = {
+            ...currentSettings,
+            shop: {
+                ...currentSettings.shop,
+                name: pharmacyName
+            }
+        };
+
+        // Save and mark as initialized
+        localStorage.setItem(SETTINGS_KEY, JSON.stringify(initializedSettings));
+        localStorage.setItem(SETTINGS_INITIALIZED_KEY, 'true');
+
+        return initializedSettings;
+    }
+
+    return currentSettings;
 }
 
 /** Save settings to localStorage */
@@ -187,8 +218,8 @@ export function SettingsModal({ isOpen, settings, onClose, onSave }: SettingsMod
                     <button
                         onClick={() => setActiveTab('shop')}
                         className={`flex-1 px-4 py-3 text-sm font-medium transition-colors ${activeTab === 'shop'
-                                ? 'text-medical-blue border-b-2 border-medical-blue bg-blue-50/50 dark:bg-blue-900/20'
-                                : 'text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200'
+                            ? 'text-medical-blue border-b-2 border-medical-blue bg-blue-50/50 dark:bg-blue-900/20'
+                            : 'text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200'
                             }`}
                     >
                         <Store size={16} className="inline mr-2" />
@@ -197,8 +228,8 @@ export function SettingsModal({ isOpen, settings, onClose, onSave }: SettingsMod
                     <button
                         onClick={() => setActiveTab('tax')}
                         className={`flex-1 px-4 py-3 text-sm font-medium transition-colors ${activeTab === 'tax'
-                                ? 'text-medical-blue border-b-2 border-medical-blue bg-blue-50/50 dark:bg-blue-900/20'
-                                : 'text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200'
+                            ? 'text-medical-blue border-b-2 border-medical-blue bg-blue-50/50 dark:bg-blue-900/20'
+                            : 'text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200'
                             }`}
                     >
                         <Percent size={16} className="inline mr-2" />
@@ -207,8 +238,8 @@ export function SettingsModal({ isOpen, settings, onClose, onSave }: SettingsMod
                     <button
                         onClick={() => setActiveTab('printer')}
                         className={`flex-1 px-4 py-3 text-sm font-medium transition-colors ${activeTab === 'printer'
-                                ? 'text-medical-blue border-b-2 border-medical-blue bg-blue-50/50 dark:bg-blue-900/20'
-                                : 'text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200'
+                            ? 'text-medical-blue border-b-2 border-medical-blue bg-blue-50/50 dark:bg-blue-900/20'
+                            : 'text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200'
                             }`}
                     >
                         <Printer size={16} className="inline mr-2" />
@@ -437,8 +468,8 @@ export function SettingsModal({ isOpen, settings, onClose, onSave }: SettingsMod
                                 <button
                                     onClick={handleToggleGST}
                                     className={`relative w-12 h-6 rounded-full transition-colors ${localSettings.gstEnabled
-                                            ? 'bg-green-500'
-                                            : 'bg-gray-300 dark:bg-gray-600'
+                                        ? 'bg-green-500'
+                                        : 'bg-gray-300 dark:bg-gray-600'
                                         }`}
                                 >
                                     <span
@@ -533,8 +564,8 @@ export function SettingsModal({ isOpen, settings, onClose, onSave }: SettingsMod
                                             key={size}
                                             onClick={() => updatePrinter({ fontSize: size })}
                                             className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${localSettings.printer.fontSize === size
-                                                    ? 'bg-medical-blue text-white'
-                                                    : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
+                                                ? 'bg-medical-blue text-white'
+                                                : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
                                                 }`}
                                         >
                                             {size.charAt(0).toUpperCase() + size.slice(1)}
@@ -554,8 +585,8 @@ export function SettingsModal({ isOpen, settings, onClose, onSave }: SettingsMod
                                 <button
                                     onClick={() => updatePrinter({ showLogo: !localSettings.printer.showLogo })}
                                     className={`relative w-12 h-6 rounded-full transition-colors ${localSettings.printer.showLogo
-                                            ? 'bg-green-500'
-                                            : 'bg-gray-300 dark:bg-gray-600'
+                                        ? 'bg-green-500'
+                                        : 'bg-gray-300 dark:bg-gray-600'
                                         }`}
                                 >
                                     <span
@@ -576,8 +607,8 @@ export function SettingsModal({ isOpen, settings, onClose, onSave }: SettingsMod
                                 <button
                                     onClick={() => updatePrinter({ autoPrint: !localSettings.printer.autoPrint })}
                                     className={`relative w-12 h-6 rounded-full transition-colors ${localSettings.printer.autoPrint
-                                            ? 'bg-green-500'
-                                            : 'bg-gray-300 dark:bg-gray-600'
+                                        ? 'bg-green-500'
+                                        : 'bg-gray-300 dark:bg-gray-600'
                                         }`}
                                 >
                                     <span
