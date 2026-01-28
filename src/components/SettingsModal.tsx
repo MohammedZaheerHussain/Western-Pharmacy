@@ -103,10 +103,20 @@ export function loadSettings(): PharmacySettings {
     return DEFAULT_SETTINGS;
 }
 
+import { syncService } from '../services/syncService';
+
+// ...
+
 /** Save settings to localStorage */
 export function saveSettings(settings: PharmacySettings): void {
     try {
         localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings));
+
+        // Queue settings sync
+        // Use 'main' as localId for singleton settings
+        syncService.queueSync('settings', 'main', 'update', settings)
+            .catch(e => console.warn('[Settings] Failed to queue sync:', e));
+
     } catch (e) {
         console.error('Failed to save settings:', e);
     }

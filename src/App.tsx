@@ -24,6 +24,9 @@ import {
     PharmacySettings,
     BackupModal
 } from './components';
+import { syncService } from './services/syncService';
+import { SyncStatusIndicator } from './components/SyncStatusIndicator';
+
 import { InstallButton, InstallSuccessToast } from './components/InstallButton';
 import { Plus, Pill, Package, Receipt, Sun, Moon, Settings, HardDrive } from 'lucide-react';
 
@@ -97,6 +100,21 @@ function App() {
     const [settingsModal, setSettingsModal] = useState(false);
     const [backupModal, setBackupModal] = useState(false);
     const [settings, setSettings] = useState<PharmacySettings>(loadSettings);
+
+    // Initialize Sync Service
+    useEffect(() => {
+        // Get or create a persistent client ID for this device
+        // In a real auth setup, this would come from the logged-in user
+        let clientId = localStorage.getItem('device-client-id');
+        if (!clientId) {
+            clientId = crypto.randomUUID();
+            localStorage.setItem('device-client-id', clientId);
+        }
+
+        syncService.initialize(clientId);
+
+        return () => syncService.stop();
+    }, []);
 
     // Apply theme on mount and changes
     useEffect(() => {
@@ -256,6 +274,9 @@ function App() {
                         </div>
 
                         <div className="flex items-center gap-3">
+                            {/* Sync Status */}
+                            <SyncStatusIndicator />
+
                             {/* Backup Button */}
                             <button
                                 onClick={() => setBackupModal(true)}

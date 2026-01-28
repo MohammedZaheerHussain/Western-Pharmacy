@@ -1,8 +1,43 @@
 // IndexedDB storage service using idb library
 // Provides CRUD operations with audit history support + billing
+// Integrated with sync service for cloud backup
 
 import { openDB, DBSchema, IDBPDatabase } from 'idb';
 import { Medicine, AuditEntry, MedicineLocation, MEDICINE_CATEGORIES, Bill, BillItem } from '../types/medicine';
+
+// Lazy-loaded sync service to avoid circular dependencies
+let syncServiceInstance: {
+    queueSync: (entityType: 'medicine' | 'bill' | 'settings', localId: string, operation: 'create' | 'update' | 'delete', payload?: unknown) => Promise<void>;
+} | null = null;
+
+async function getSyncService() {
+    if (!syncServiceInstance) {
+        try {
+            const { syncService } = await import('./syncService');
+            syncServiceInstance = syncService;
+        } catch (e) {
+            console.warn('[Storage] Sync service not available:', e);
+        }
+    }
+    return syncServiceInstance;
+}
+
+/** Queue a sync operation (non-blocking) */
+async function queueSync(
+    entityType: 'medicine' | 'bill' | 'settings',
+    localId: string,
+    operation: 'create' | 'update' | 'delete',
+    payload?: unknown
+): Promise<void> {
+    try {
+        const syncService = await getSyncService();
+        if (syncService) {
+            await syncService.queueSync(entityType, localId, operation, payload);
+        }
+    } catch (e) {
+        console.warn('[Storage] Failed to queue sync:', e);
+    }
+}
 
 interface PharmacyDB extends DBSchema {
     medicines: {
@@ -288,6 +323,10 @@ export async function addMedicine(
     newMedicine = normalizeMedicine(newMedicine);
 
     await db.add('medicines', newMedicine);
+
+    // Queue for cloud sync
+    queueSync('medicine', newMedicine.id, 'create', newMedicine);
+
     return newMedicine;
 }
 
@@ -367,6 +406,10 @@ export async function updateMedicine(
     updatedMedicine = normalizeMedicine(updatedMedicine);
 
     await db.put('medicines', updatedMedicine);
+
+    // Queue for cloud sync
+    queueSync('medicine', updatedMedicine.id, 'update', updatedMedicine);
+
     return updatedMedicine;
 }
 
@@ -378,6 +421,10 @@ export async function deleteMedicine(id: string): Promise<boolean> {
     if (!existing) return false;
 
     await db.delete('medicines', id);
+
+    // Queue for cloud sync
+    queueSync('medicine', id, 'delete');
+
     return true;
 }
 
@@ -518,6 +565,9 @@ export async function createBill(
         };
 
         await tx.store.put(updatedMedicine);
+
+        // Queue medicine update for sync (stock change)
+        queueSync('medicine', updatedMedicine.id, 'update', updatedMedicine);
     }
 
     await tx.done;
@@ -538,6 +588,9 @@ export async function createBill(
     };
 
     await db.add('bills', bill);
+
+    // Queue bill for sync
+    queueSync('bill', bill.id, 'create', bill);
 
     return bill;
 }
@@ -641,6 +694,9 @@ export async function updateBill(
         };
 
         await tx.store.put(updatedMedicine);
+
+        // Queue medicine update for sync (stock change)
+        queueSync('medicine', updatedMedicine.id, 'update', updatedMedicine);
     }
 
     await tx.done;
@@ -667,6 +723,9 @@ export async function updateBill(
     };
 
     await db.put('bills', updatedBill);
+
+    // Queue bill update for sync
+    queueSync('bill', updatedBill.id, 'update', updatedBill);
 
     return updatedBill;
 }

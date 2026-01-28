@@ -62,5 +62,5 @@ export default defineConfig({
         enabled: true // Enable PWA in dev for testing
       }
     })
-  ],
+  ] as any,
 })
