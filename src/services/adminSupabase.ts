@@ -10,8 +10,20 @@ import { createClient as createSupabaseClient } from '@supabase/supabase-js';
 // TODO: Replace with your actual Supabase URL and anon key
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || 'https://YOUR_PROJECT.supabase.co';
 const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY || 'YOUR_ANON_KEY';
+const SUPABASE_SERVICE_ROLE_KEY = import.meta.env.VITE_SUPABASE_SERVICE_ROLE_KEY || '';
 
 export const supabase = createSupabaseClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+// Admin client with service role - for creating users without email verification
+// WARNING: Only use on server-side or protected admin routes
+const supabaseAdmin = SUPABASE_SERVICE_ROLE_KEY
+    ? createSupabaseClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, {
+        auth: {
+            autoRefreshToken: false,
+            persistSession: false
+        }
+    })
+    : null;
 
 // ============ AUTH ============
 
@@ -78,21 +90,42 @@ export async function createPharmacyClient(input: ClientInput, created_by: strin
     const clientId = await generateClientId();
     const password = generatePassword(input.pharmacy_name);
 
+    let userId: string | undefined;
+
     // Step 1: Create auth user for client login
-    // Note: Using signUp instead of admin API since we don't have service role key in client
-    const { data: authData, error: authError } = await supabase.auth.signUp({
-        email: input.email,
-        password: password,
-        options: {
-            data: {
+    if (supabaseAdmin) {
+        // Use admin API to create user WITHOUT email verification
+        const { data: authData, error: authError } = await supabaseAdmin.auth.admin.createUser({
+            email: input.email,
+            password: password,
+            email_confirm: true, // Skip email verification - instant activation!
+            user_metadata: {
                 role: 'client',
                 pharmacy_name: input.pharmacy_name
             }
-        }
-    });
+        });
 
-    if (authError) {
-        throw new Error(`Failed to create login: ${authError.message}`);
+        if (authError) {
+            throw new Error(`Failed to create login: ${authError.message}`);
+        }
+        userId = authData.user?.id;
+    } else {
+        // Fallback to regular signUp (requires email verification)
+        const { data: authData, error: authError } = await supabase.auth.signUp({
+            email: input.email,
+            password: password,
+            options: {
+                data: {
+                    role: 'client',
+                    pharmacy_name: input.pharmacy_name
+                }
+            }
+        });
+
+        if (authError) {
+            throw new Error(`Failed to create login: ${authError.message}`);
+        }
+        userId = authData.user?.id;
     }
 
     // Step 2: Create client record in database
@@ -101,7 +134,7 @@ export async function createPharmacyClient(input: ClientInput, created_by: strin
         .insert({
             ...input,
             client_id: clientId,
-            user_id: authData.user?.id,
+            user_id: userId,
             created_by,
             status: 'active'
         })
@@ -109,8 +142,10 @@ export async function createPharmacyClient(input: ClientInput, created_by: strin
         .single();
 
     if (error) {
-        // Cleanup: If client creation fails, we should ideally delete the auth user
-        // But we can't do that without admin API, so just throw error
+        // Cleanup: If client creation fails, try to delete the auth user
+        if (supabaseAdmin && userId) {
+            await supabaseAdmin.auth.admin.deleteUser(userId).catch(() => { });
+        }
         throw new Error(`Failed to create client: ${error.message}`);
     }
 
