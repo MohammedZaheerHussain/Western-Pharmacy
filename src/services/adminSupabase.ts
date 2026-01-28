@@ -133,11 +133,37 @@ export async function createPharmacyClient(input: ClientInput, created_by: strin
         userId = authData.user?.id;
     }
 
-    // Step 2: Create client record in database
+    // Step 2: Lookup plan UUID by name (since input.plan_id is the plan name, not UUID)
+    const { data: planData, error: planError } = await supabase
+        .from('plans')
+        .select('id')
+        .eq('name', input.plan_id)
+        .single();
+
+    if (planError || !planData) {
+        // Cleanup auth user if plan not found
+        if (supabaseAdmin && userId) {
+            await supabaseAdmin.auth.admin.deleteUser(userId).catch(() => { });
+        }
+        throw new Error(`Invalid plan: ${input.plan_id}`);
+    }
+
+    // Step 3: Create client record in database with actual plan UUID
     const { data, error } = await supabase
         .from('clients')
         .insert({
-            ...input,
+            pharmacy_name: input.pharmacy_name,
+            owner_name: input.owner_name,
+            email: input.email,
+            phone: input.phone,
+            address: input.address,
+            city: input.city,
+            state: input.state,
+            pincode: input.pincode,
+            gst_number: input.gst_number,
+            dl_number_1: input.dl_number_1,
+            dl_number_2: input.dl_number_2,
+            plan_id: planData.id, // Use the actual UUID, not the name!
             client_id: clientId,
             user_id: userId,
             created_by,
