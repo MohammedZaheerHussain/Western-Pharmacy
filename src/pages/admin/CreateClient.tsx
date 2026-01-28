@@ -245,6 +245,31 @@ export default function CreateClient({ onBack, onSuccess }: CreateClientProps) {
                             Subscription Plan
                         </h3>
 
+                        {/* Demo Plan - For Client Demos */}
+                        <p className="text-xs font-semibold text-orange-500 mb-3">🎯 DEMO (for client presentations)</p>
+                        <div className="mb-6">
+                            <div
+                                onClick={() => handleChange('plan_id', 'demo_3day')}
+                                className={`p-4 rounded-xl cursor-pointer transition-all border-2 border-dashed ${form.plan_id === 'demo_3day'
+                                        ? 'border-orange-500 bg-orange-50 dark:bg-orange-900/30'
+                                        : 'border-orange-300 dark:border-orange-700 hover:border-orange-400 bg-orange-50/50 dark:bg-orange-900/10'
+                                    }`}
+                            >
+                                <div className="flex items-center justify-between">
+                                    <div>
+                                        <p className="font-semibold text-gray-900 dark:text-gray-100">Demo Account</p>
+                                        <p className="text-xl font-bold text-orange-600 dark:text-orange-400">FREE</p>
+                                        <p className="text-sm text-orange-600">3 Days Trial</p>
+                                    </div>
+                                    <div className="text-right">
+                                        <p className="text-xs text-gray-500">Perfect for</p>
+                                        <p className="text-sm text-gray-600 dark:text-gray-400">Client Demos</p>
+                                    </div>
+                                </div>
+                                <p className="text-xs text-gray-400 mt-2">Full features for 3 days • Auto-expires</p>
+                            </div>
+                        </div>
+
                         {/* 1 Year Plans */}
                         <p className="text-xs font-semibold text-gray-500 mb-3">📅 1 YEAR PLANS</p>
                         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
@@ -257,8 +282,8 @@ export default function CreateClient({ onBack, onSuccess }: CreateClientProps) {
                                     key={plan.id}
                                     onClick={() => handleChange('plan_id', plan.id)}
                                     className={`p-4 rounded-xl cursor-pointer transition-all ${form.plan_id === plan.id
-                                            ? 'border-2 border-indigo-500 bg-indigo-50 dark:bg-indigo-900/30'
-                                            : 'border border-gray-200 dark:border-gray-700 hover:border-indigo-300'
+                                        ? 'border-2 border-indigo-500 bg-indigo-50 dark:bg-indigo-900/30'
+                                        : 'border border-gray-200 dark:border-gray-700 hover:border-indigo-300'
                                         }`}
                                 >
                                     <p className="font-semibold text-gray-900 dark:text-gray-100">{plan.name}</p>
@@ -281,8 +306,8 @@ export default function CreateClient({ onBack, onSuccess }: CreateClientProps) {
                                     key={plan.id}
                                     onClick={() => handleChange('plan_id', plan.id)}
                                     className={`p-4 rounded-xl cursor-pointer transition-all relative ${form.plan_id === plan.id
-                                            ? 'border-2 border-green-500 bg-green-50 dark:bg-green-900/30'
-                                            : 'border border-gray-200 dark:border-gray-700 hover:border-green-300'
+                                        ? 'border-2 border-green-500 bg-green-50 dark:bg-green-900/30'
+                                        : 'border border-gray-200 dark:border-gray-700 hover:border-green-300'
                                         }`}
                                 >
                                     {plan.best && (
@@ -301,13 +326,14 @@ export default function CreateClient({ onBack, onSuccess }: CreateClientProps) {
                         {/* Selection Display */}
                         <div className="bg-gray-100 dark:bg-gray-700 rounded-lg px-4 py-3 text-sm">
                             <strong>Selected:</strong>{' '}
-                            {form.plan_id === 'basic_yearly' ? 'Basic (1 Year) - ₹1,000' :
-                                form.plan_id === 'pro_yearly' ? 'Professional (1 Year) - ₹2,000' :
-                                    form.plan_id === 'premium_yearly' ? 'Premium (1 Year) - ₹3,000' :
-                                        form.plan_id === 'basic_lifetime' ? 'Basic (Lifetime) - ₹5,000' :
-                                            form.plan_id === 'pro_lifetime' ? 'Professional (Lifetime) - ₹7,000' :
-                                                form.plan_id === 'premium_lifetime' ? 'Premium (Lifetime) - ₹10,000' :
-                                                    'Click a plan to select'}
+                            {form.plan_id === 'demo_3day' ? '🎯 Demo (3 Days) - FREE' :
+                                form.plan_id === 'basic_yearly' ? 'Basic (1 Year) - ₹1,000' :
+                                    form.plan_id === 'pro_yearly' ? 'Professional (1 Year) - ₹2,000' :
+                                        form.plan_id === 'premium_yearly' ? 'Premium (1 Year) - ₹3,000' :
+                                            form.plan_id === 'basic_lifetime' ? 'Basic (Lifetime) - ₹5,000' :
+                                                form.plan_id === 'pro_lifetime' ? 'Professional (Lifetime) - ₹7,000' :
+                                                    form.plan_id === 'premium_lifetime' ? 'Premium (Lifetime) - ₹10,000' :
+                                                        'Click a plan to select'}
                         </div>
                     </div>
 
