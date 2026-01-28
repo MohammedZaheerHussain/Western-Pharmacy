@@ -25,9 +25,10 @@ import {
     BackupModal
 } from './components';
 import { LoginPage } from './components/LoginPage';
+import { AdminApp } from './pages/AdminApp';
 import { InstallButton, InstallSuccessToast } from './components/InstallButton';
 import { Plus, Pill, Package, Receipt, Sun, Moon, Settings, HardDrive, LogOut } from 'lucide-react';
-import { getCurrentUser, signOut, onAuthStateChange, isAuthEnabled, AuthUser } from './services/auth';
+import { getCurrentUser, signOut, onAuthStateChange, isAuthEnabled, AuthUser, isSuperAdmin } from './services/auth';
 
 type ViewMode = 'inventory' | 'billing';
 type Theme = 'light' | 'dark' | 'system';
@@ -281,6 +282,11 @@ function App() {
     // Login gate - show login page if auth is enabled and user not logged in
     if (isAuthEnabled() && !user) {
         return <LoginPage onLogin={() => getCurrentUser().then(setUser)} />;
+    }
+
+    // Role-based routing - super admin sees admin dashboard
+    if (isSuperAdmin(user)) {
+        return <AdminApp user={user!} onLogout={() => setUser(null)} />;
     }
 
     if (loading) {

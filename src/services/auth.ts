@@ -1,6 +1,6 @@
 /**
- * Supabase Client for Western Pharmacy (Billing App)
- * Handles client authentication
+ * Supabase Client for Western Pharmacy
+ * Handles authentication with role-based access
  */
 
 import { createClient } from '@supabase/supabase-js';
@@ -14,10 +14,22 @@ export const supabase = SUPABASE_URL && SUPABASE_ANON_KEY
     ? createClient(SUPABASE_URL, SUPABASE_ANON_KEY)
     : null;
 
+export type UserRole = 'super_admin' | 'client';
+
 export interface AuthUser {
     id: string;
     email: string;
+    role: UserRole;
     pharmacyName?: string;
+}
+
+/**
+ * Extract role from user metadata
+ */
+function getUserRole(userMetadata: Record<string, unknown> | undefined): UserRole {
+    const role = userMetadata?.role;
+    if (role === 'super_admin') return 'super_admin';
+    return 'client'; // Default to client
 }
 
 /**
@@ -44,6 +56,7 @@ export async function signIn(email: string, password: string): Promise<AuthUser>
     return {
         id: data.user.id,
         email: data.user.email || email,
+        role: getUserRole(data.user.user_metadata),
         pharmacyName: data.user.user_metadata?.pharmacy_name
     };
 }
@@ -73,6 +86,7 @@ export async function getCurrentUser(): Promise<AuthUser | null> {
     return {
         id: user.id,
         email: user.email || '',
+        role: getUserRole(user.user_metadata),
         pharmacyName: user.user_metadata?.pharmacy_name
     };
 }
@@ -82,7 +96,6 @@ export async function getCurrentUser(): Promise<AuthUser | null> {
  */
 export function onAuthStateChange(callback: (user: AuthUser | null) => void) {
     if (!supabase) {
-        // If no auth configured, callback with null immediately
         callback(null);
         return { unsubscribe: () => { } };
     }
@@ -92,6 +105,7 @@ export function onAuthStateChange(callback: (user: AuthUser | null) => void) {
             callback({
                 id: session.user.id,
                 email: session.user.email || '',
+                role: getUserRole(session.user.user_metadata),
                 pharmacyName: session.user.user_metadata?.pharmacy_name
             });
         } else {
@@ -107,4 +121,11 @@ export function onAuthStateChange(callback: (user: AuthUser | null) => void) {
  */
 export function isAuthEnabled(): boolean {
     return !!supabase;
+}
+
+/**
+ * Check if user is super admin
+ */
+export function isSuperAdmin(user: AuthUser | null): boolean {
+    return user?.role === 'super_admin';
 }
