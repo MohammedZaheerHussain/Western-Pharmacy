@@ -17,5 +17,5 @@ export { BillReceiptModal } from './BillReceiptModal';
 export { BillHistoryModal } from './BillHistoryModal';
 
 // Settings
-export { SettingsModal, loadSettings, saveSettings } from './SettingsModal';
+export { SettingsModal, loadSettings, saveSettings, initializeSettingsFromUserMetadata } from './SettingsModal';
 export type { PharmacySettings, ShopDetails } from './SettingsModal';
