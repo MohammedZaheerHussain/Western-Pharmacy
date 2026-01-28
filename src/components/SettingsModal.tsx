@@ -36,6 +36,9 @@ export interface ShopDetails {
     dlNumber2: string; // Drug License Number 2
     email: string;
     tagline: string; // e.g., "Wish you a speedy recovery"
+    heroText: string; // Header text on receipt (e.g., "INVOICE / RECEIPT")
+    footerText: string; // Footer branding text
+    logoUrl: string; // Base64 or URL of logo
 }
 
 export interface PharmacySettings {
@@ -46,7 +49,7 @@ export interface PharmacySettings {
 }
 
 const DEFAULT_SHOP: ShopDetails = {
-    name: 'Weston Pharmacy',
+    name: '',
     address1: '',
     address2: '',
     city: '',
@@ -59,6 +62,9 @@ const DEFAULT_SHOP: ShopDetails = {
     dlNumber2: '',
     email: '',
     tagline: 'Thank you for your purchase!',
+    heroText: 'INVOICE / RECEIPT',
+    footerText: 'Powered by Billova Medical Billing',
+    logoUrl: '',
 };
 
 const DEFAULT_PRINTER: PrinterSettings = {
@@ -143,6 +149,43 @@ export function getPaperWidth(settings: PharmacySettings): number {
         return settings.printer.customWidth;
     }
     return PAPER_SIZES.find(p => p.value === settings.printer.paperSize)?.width || 80;
+}
+
+const SETTINGS_INITIALIZED_KEY = 'pharmacy-settings-initialized';
+
+/** Initialize settings from user metadata (called on first login) */
+export function initializeSettingsFromUserMetadata(pharmacyName?: string): PharmacySettings {
+    // Check if already initialized
+    const isInitialized = localStorage.getItem(SETTINGS_INITIALIZED_KEY);
+    const currentSettings = loadSettings();
+
+    // If already initialized or no pharmacy name, return current settings
+    if (isInitialized || !pharmacyName) {
+        return currentSettings;
+    }
+
+    // Only pre-fill if shop name is empty (not set by user)
+    if (!currentSettings.shop.name || currentSettings.shop.name === '') {
+        const updatedSettings: PharmacySettings = {
+            ...currentSettings,
+            shop: {
+                ...currentSettings.shop,
+                name: pharmacyName
+            }
+        };
+
+        // Save the updated settings
+        saveSettings(updatedSettings);
+
+        // Mark as initialized so we don't overwrite user changes
+        localStorage.setItem(SETTINGS_INITIALIZED_KEY, 'true');
+
+        return updatedSettings;
+    }
+
+    // Mark as initialized even if we didn't update (user already has a name)
+    localStorage.setItem(SETTINGS_INITIALIZED_KEY, 'true');
+    return currentSettings;
 }
 
 interface SettingsModalProps {
@@ -441,6 +484,60 @@ export function SettingsModal({ isOpen, settings, onClose, onSave }: SettingsMod
                                              bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100
                                              focus:border-medical-blue focus:ring-2 focus:ring-medical-blue/20"
                                 />
+                            </div>
+
+                            {/* Receipt Customization */}
+                            <div className="pt-2 border-t border-gray-200 dark:border-gray-700">
+                                <h4 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">
+                                    Receipt Branding
+                                </h4>
+                                <div className="space-y-3">
+                                    <div>
+                                        <label className="block text-sm text-gray-600 dark:text-gray-400 mb-1">
+                                            Hero Text (Receipt Header)
+                                        </label>
+                                        <input
+                                            type="text"
+                                            value={localSettings.shop.heroText || ''}
+                                            onChange={(e) => updateShop({ heroText: e.target.value })}
+                                            placeholder="e.g., INVOICE / RECEIPT"
+                                            className="w-full px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-600
+                                                     bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100
+                                                     focus:border-medical-blue focus:ring-2 focus:ring-medical-blue/20"
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="block text-sm text-gray-600 dark:text-gray-400 mb-1">
+                                            Footer Branding Text
+                                        </label>
+                                        <input
+                                            type="text"
+                                            value={localSettings.shop.footerText || ''}
+                                            onChange={(e) => updateShop({ footerText: e.target.value })}
+                                            placeholder="e.g., Powered by Billova Medical Billing"
+                                            className="w-full px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-600
+                                                     bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100
+                                                     focus:border-medical-blue focus:ring-2 focus:ring-medical-blue/20"
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="block text-sm text-gray-600 dark:text-gray-400 mb-1">
+                                            Logo URL (Optional)
+                                        </label>
+                                        <input
+                                            type="text"
+                                            value={localSettings.shop.logoUrl || ''}
+                                            onChange={(e) => updateShop({ logoUrl: e.target.value })}
+                                            placeholder="https://example.com/logo.png or leave blank"
+                                            className="w-full px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-600
+                                                     bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100
+                                                     focus:border-medical-blue focus:ring-2 focus:ring-medical-blue/20"
+                                        />
+                                        <p className="text-xs text-gray-400 mt-1">
+                                            Enter a URL to display a logo on receipts
+                                        </p>
+                                    </div>
+                                </div>
                             </div>
                         </div>
                     )}

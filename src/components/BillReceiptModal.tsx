@@ -152,7 +152,7 @@ export function BillReceiptModal({ bill, onClose }: BillReceiptModalProps) {
 
                         {/* Invoice Title */}
                         <div className="text-center font-bold text-sm border-b border-gray-300 pb-2 mb-3">
-                            INVOICE / RECEIPT
+                            {shop.heroText || 'INVOICE / RECEIPT'}
                         </div>
 
                         {/* Bill Details Row */}
@@ -252,7 +252,7 @@ export function BillReceiptModal({ bill, onClose }: BillReceiptModalProps) {
                             </p>
                             <div className="mt-4 pt-3 border-t border-gray-200">
                                 <p className="text-[9px] text-gray-400">
-                                    Powered by Weston Pharmacy App
+                                    {shop.footerText || 'Powered by Billova Medical Billing'}
                                 </p>
                             </div>
                         </div>
