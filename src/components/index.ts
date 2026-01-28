@@ -9,6 +9,7 @@ export { DeleteConfirmModal } from './DeleteConfirmModal';
 export { BulkActionsBar } from './BulkActionsBar';
 export { ImportExportBar } from './ImportExportBar';
 export { LocationModal } from './LocationModal';
+export { BackupModal } from './BackupModal';
 
 // Billing components
 export { BillingPanel } from './BillingPanel';

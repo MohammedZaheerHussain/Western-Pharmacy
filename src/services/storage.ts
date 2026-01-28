@@ -746,6 +746,171 @@ export async function importMedicines(medicines: Omit<Medicine, 'id' | 'createdA
     return imported;
 }
 
+// ============ FULL BACKUP SYSTEM ============
+
+export interface BackupData {
+    version: number;
+    exportedAt: string;
+    pharmacyName: string;
+    medicines: Medicine[];
+    bills: Bill[];
+    counters: { id: string; value: number }[];
+}
+
+const BACKUP_VERSION = 1;
+const LAST_BACKUP_KEY = 'western-pharmacy-last-backup';
+const BACKUP_REMINDER_DAYS = 7;
+
+/** Create full backup of all data */
+export async function createFullBackup(pharmacyName: string = 'Western Pharmacy'): Promise<BackupData> {
+    const db = await getDB();
+
+    const medicines = await db.getAll('medicines');
+    const bills = await db.getAll('bills');
+    const counters = await db.getAll('counters');
+
+    const backup: BackupData = {
+        version: BACKUP_VERSION,
+        exportedAt: new Date().toISOString(),
+        pharmacyName,
+        medicines,
+        bills,
+        counters
+    };
+
+    // Update last backup timestamp
+    localStorage.setItem(LAST_BACKUP_KEY, new Date().toISOString());
+
+    return backup;
+}
+
+/** Download backup as JSON file */
+export async function downloadBackup(pharmacyName: string = 'Western Pharmacy'): Promise<void> {
+    const backup = await createFullBackup(pharmacyName);
+    const json = JSON.stringify(backup, null, 2);
+    const blob = new Blob([json], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${pharmacyName.replace(/\s+/g, '_')}_backup_${new Date().toISOString().split('T')[0]}.json`;
+    a.click();
+
+    URL.revokeObjectURL(url);
+}
+
+/** Restore from backup file */
+export async function restoreFromBackup(backupData: BackupData, options: {
+    clearExisting?: boolean;
+    mergeMode?: 'skip' | 'overwrite';
+} = {}): Promise<{ medicinesRestored: number; billsRestored: number }> {
+    const { clearExisting = false, mergeMode = 'skip' } = options;
+    const db = await getDB();
+
+    let medicinesRestored = 0;
+    let billsRestored = 0;
+
+    // Clear existing data if requested
+    if (clearExisting) {
+        const txClear = db.transaction(['medicines', 'bills', 'counters'], 'readwrite');
+        await txClear.objectStore('medicines').clear();
+        await txClear.objectStore('bills').clear();
+        await txClear.objectStore('counters').clear();
+        await txClear.done;
+    }
+
+    // Restore medicines
+    const txMedicines = db.transaction('medicines', 'readwrite');
+    for (const medicine of backupData.medicines) {
+        const existing = await txMedicines.store.get(medicine.id);
+        if (!existing || mergeMode === 'overwrite') {
+            await txMedicines.store.put(medicine);
+            medicinesRestored++;
+        }
+    }
+    await txMedicines.done;
+
+    // Restore bills
+    const txBills = db.transaction('bills', 'readwrite');
+    for (const bill of backupData.bills) {
+        const existing = await txBills.store.get(bill.id);
+        if (!existing || mergeMode === 'overwrite') {
+            await txBills.store.put(bill);
+            billsRestored++;
+        }
+    }
+    await txBills.done;
+
+    // Restore counters
+    if (backupData.counters) {
+        const txCounters = db.transaction('counters', 'readwrite');
+        for (const counter of backupData.counters) {
+            await txCounters.store.put(counter);
+        }
+        await txCounters.done;
+    }
+
+    return { medicinesRestored, billsRestored };
+}
+
+/** Parse backup file content */
+export function parseBackupFile(content: string): { valid: boolean; data?: BackupData; error?: string } {
+    try {
+        const data = JSON.parse(content) as BackupData;
+
+        // Validate backup structure
+        if (!data.version || !data.exportedAt || !Array.isArray(data.medicines)) {
+            return { valid: false, error: 'Invalid backup file format' };
+        }
+
+        if (data.version > BACKUP_VERSION) {
+            return { valid: false, error: 'Backup version is newer than app version. Please update the app.' };
+        }
+
+        return { valid: true, data };
+    } catch (e) {
+        return { valid: false, error: 'Failed to parse backup file. Make sure it\'s a valid JSON file.' };
+    }
+}
+
+/** Check if backup reminder should be shown */
+export function shouldShowBackupReminder(): boolean {
+    const lastBackup = localStorage.getItem(LAST_BACKUP_KEY);
+    if (!lastBackup) return true; // Never backed up
+
+    const lastBackupDate = new Date(lastBackup);
+    const daysSinceBackup = (Date.now() - lastBackupDate.getTime()) / (1000 * 60 * 60 * 24);
+
+    return daysSinceBackup >= BACKUP_REMINDER_DAYS;
+}
+
+/** Dismiss backup reminder for today */
+export function dismissBackupReminder(): void {
+    localStorage.setItem('backup-reminder-dismissed', new Date().toISOString());
+}
+
+/** Check if reminder was dismissed today */
+export function isBackupReminderDismissedToday(): boolean {
+    const dismissed = localStorage.getItem('backup-reminder-dismissed');
+    if (!dismissed) return false;
+
+    const dismissedDate = new Date(dismissed).toDateString();
+    const today = new Date().toDateString();
+
+    return dismissedDate === today;
+}
+
+/** Get last backup info */
+export function getLastBackupInfo(): { date: Date | null; daysSince: number | null } {
+    const lastBackup = localStorage.getItem(LAST_BACKUP_KEY);
+    if (!lastBackup) return { date: null, daysSince: null };
+
+    const date = new Date(lastBackup);
+    const daysSince = Math.floor((Date.now() - date.getTime()) / (1000 * 60 * 60 * 24));
+
+    return { date, daysSince };
+}
+
 /** Seed initial data if database is empty */
 export async function seedInitialData(): Promise<void> {
     const existing = await getAllMedicines();

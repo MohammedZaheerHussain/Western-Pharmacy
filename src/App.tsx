@@ -21,10 +21,11 @@ import {
     BillingPanel,
     SettingsModal,
     loadSettings,
-    PharmacySettings
+    PharmacySettings,
+    BackupModal
 } from './components';
 import { InstallButton, InstallSuccessToast } from './components/InstallButton';
-import { Plus, Pill, Package, Receipt, Sun, Moon, Settings } from 'lucide-react';
+import { Plus, Pill, Package, Receipt, Sun, Moon, Settings, HardDrive } from 'lucide-react';
 
 type ViewMode = 'inventory' | 'billing';
 type Theme = 'light' | 'dark' | 'system';
@@ -94,6 +95,7 @@ function App() {
     const [actionLoading, setActionLoading] = useState(false);
     const [showInstallToast, setShowInstallToast] = useState(false);
     const [settingsModal, setSettingsModal] = useState(false);
+    const [backupModal, setBackupModal] = useState(false);
     const [settings, setSettings] = useState<PharmacySettings>(loadSettings);
 
     // Apply theme on mount and changes
@@ -254,6 +256,17 @@ function App() {
                         </div>
 
                         <div className="flex items-center gap-3">
+                            {/* Backup Button */}
+                            <button
+                                onClick={() => setBackupModal(true)}
+                                className="p-2 text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 
+                                         rounded-lg transition-colors"
+                                title="Backup Data"
+                                aria-label="Backup Data"
+                            >
+                                <HardDrive size={20} />
+                            </button>
+
                             {/* Settings Button */}
                             <button
                                 onClick={() => setSettingsModal(true)}
@@ -458,6 +471,14 @@ function App() {
                 settings={settings}
                 onClose={() => setSettingsModal(false)}
                 onSave={setSettings}
+            />
+
+            {/* Backup Modal */}
+            <BackupModal
+                isOpen={backupModal}
+                onClose={() => setBackupModal(false)}
+                onBackupComplete={() => { }}
+                onRestoreComplete={refreshMedicines}
             />
         </div>
     );
