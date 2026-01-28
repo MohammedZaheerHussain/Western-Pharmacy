@@ -27,6 +27,8 @@ import {
 } from './components';
 import { LoginPage } from './components/LoginPage';
 import { AdminApp } from './pages/AdminApp';
+import { syncService } from './services/syncService';
+import { SyncStatusIndicator } from './components/SyncStatusIndicator';
 import { InstallButton, InstallSuccessToast } from './components/InstallButton';
 import { Plus, Package, Receipt, Sun, Moon, Settings, HardDrive, LogOut } from 'lucide-react';
 import { getCurrentUser, signOut, onAuthStateChange, isAuthEnabled, AuthUser, isSuperAdmin } from './services/auth';
@@ -105,6 +107,21 @@ function App() {
     // Auth state
     const [user, setUser] = useState<AuthUser | null>(null);
     const [authLoading, setAuthLoading] = useState(true);
+
+    // Initialize Sync Service
+    useEffect(() => {
+        // Get or create a persistent client ID for this device
+        // In a real auth setup, this would come from the logged-in user
+        let clientId = localStorage.getItem('device-client-id');
+        if (!clientId) {
+            clientId = crypto.randomUUID();
+            localStorage.setItem('device-client-id', clientId);
+        }
+
+        syncService.initialize(clientId);
+
+        return () => syncService.stop();
+    }, []);
 
     // Apply theme on mount and changes
     useEffect(() => {
@@ -328,6 +345,9 @@ function App() {
                         </div>
 
                         <div className="flex items-center gap-3">
+                            {/* Sync Status */}
+                            <SyncStatusIndicator />
+
                             {/* Backup Button */}
                             <button
                                 onClick={() => setBackupModal(true)}
