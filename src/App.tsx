@@ -27,7 +27,7 @@ import {
 import { LoginPage } from './components/LoginPage';
 import { AdminApp } from './pages/AdminApp';
 import { InstallButton, InstallSuccessToast } from './components/InstallButton';
-import { Plus, Pill, Package, Receipt, Sun, Moon, Settings, HardDrive, LogOut } from 'lucide-react';
+import { Plus, Package, Receipt, Sun, Moon, Settings, HardDrive, LogOut } from 'lucide-react';
 import { getCurrentUser, signOut, onAuthStateChange, isAuthEnabled, AuthUser, isSuperAdmin } from './services/auth';
 
 type ViewMode = 'inventory' | 'billing';
@@ -307,12 +307,12 @@ function App() {
                 <div className="max-w-7xl mx-auto px-4 sm:px-6 py-4">
                     <div className="flex items-center justify-between mb-4">
                         <div className="flex items-center gap-3">
-                            <div className="p-2 bg-medical-blue rounded-xl">
-                                <Pill className="text-white" size={24} />
+                            <div className="w-10 h-10 bg-white rounded-xl shadow-sm p-1">
+                                <img src="/billova-logo.png" alt="Billova" className="w-full h-full object-contain" />
                             </div>
                             <div>
-                                <h1 className="text-xl font-bold text-gray-900 dark:text-gray-100">Weston Pharmacy</h1>
-                                <p className="text-sm text-gray-500 dark:text-gray-400">Medicine Inventory</p>
+                                <h1 className="text-xl font-bold text-gray-900 dark:text-gray-100">Billova Medical</h1>
+                                <p className="text-sm text-gray-500 dark:text-gray-400">{user?.pharmacyName || 'Pharmacy Billing'}</p>
                             </div>
                         </div>
 

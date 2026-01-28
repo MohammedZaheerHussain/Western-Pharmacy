@@ -92,8 +92,8 @@ export function AdminApp({ user, onLogout }: AdminAppProps) {
                             )}
 
                             <div className="flex items-center gap-3">
-                                <div className="p-2 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-xl">
-                                    <LayoutDashboard className="text-white" size={24} />
+                                <div className="w-10 h-10 bg-white rounded-xl shadow-sm p-1">
+                                    <img src="/billova-logo.png" alt="Billova" className="w-full h-full object-contain" />
                                 </div>
                                 <div>
                                     <h1 className="text-lg font-bold text-gray-900 dark:text-gray-100">
@@ -111,8 +111,8 @@ export function AdminApp({ user, onLogout }: AdminAppProps) {
                             <button
                                 onClick={() => setCurrentView('dashboard')}
                                 className={`p-2 rounded-lg transition-colors ${currentView === 'dashboard'
-                                        ? 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-400'
-                                        : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700'
+                                    ? 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-400'
+                                    : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700'
                                     }`}
                                 title="Dashboard"
                             >
@@ -122,8 +122,8 @@ export function AdminApp({ user, onLogout }: AdminAppProps) {
                             <button
                                 onClick={navigateToClients}
                                 className={`p-2 rounded-lg transition-colors ${currentView === 'clients' || currentView === 'client-detail'
-                                        ? 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-400'
-                                        : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700'
+                                    ? 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-400'
+                                    : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700'
                                     }`}
                                 title="Clients"
                             >
@@ -133,8 +133,8 @@ export function AdminApp({ user, onLogout }: AdminAppProps) {
                             <button
                                 onClick={navigateToCreateClient}
                                 className={`p-2 rounded-lg transition-colors ${currentView === 'create-client'
-                                        ? 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-400'
-                                        : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700'
+                                    ? 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-400'
+                                    : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700'
                                     }`}
                                 title="Add Client"
                             >

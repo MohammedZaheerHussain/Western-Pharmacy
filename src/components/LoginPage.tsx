@@ -3,7 +3,7 @@
  */
 
 import { useState } from 'react';
-import { Pill, LogIn, Eye, EyeOff, AlertCircle } from 'lucide-react';
+import { LogIn, Eye, EyeOff, AlertCircle } from 'lucide-react';
 import { signIn } from '../services/auth';
 
 interface LoginPageProps {
@@ -43,9 +43,9 @@ export function LoginPage({ onLogin }: LoginPageProps) {
             <div className="w-full max-w-md">
                 {/* Logo/Header */}
                 <div className="text-center mb-8">
-                    <div className="inline-flex items-center justify-center w-16 h-16 
-                                  bg-white rounded-2xl shadow-lg mb-4">
-                        <Pill className="text-blue-600" size={32} />
+                    <div className="inline-flex items-center justify-center w-20 h-20 
+                                  bg-white rounded-2xl shadow-lg mb-4 p-2">
+                        <img src="/billova-logo.png" alt="Billova" className="w-full h-full object-contain" />
                     </div>
                     <h1 className="text-3xl font-bold text-white mb-2">
                         Billova Medical Billing
