@@ -24,8 +24,10 @@ import {
     PharmacySettings,
     BackupModal
 } from './components';
+import { LoginPage } from './components/LoginPage';
 import { InstallButton, InstallSuccessToast } from './components/InstallButton';
-import { Plus, Pill, Package, Receipt, Sun, Moon, Settings, HardDrive } from 'lucide-react';
+import { Plus, Pill, Package, Receipt, Sun, Moon, Settings, HardDrive, LogOut } from 'lucide-react';
+import { getCurrentUser, signOut, onAuthStateChange, isAuthEnabled, AuthUser } from './services/auth';
 
 type ViewMode = 'inventory' | 'billing';
 type Theme = 'light' | 'dark' | 'system';
@@ -98,6 +100,10 @@ function App() {
     const [backupModal, setBackupModal] = useState(false);
     const [settings, setSettings] = useState<PharmacySettings>(loadSettings);
 
+    // Auth state
+    const [user, setUser] = useState<AuthUser | null>(null);
+    const [authLoading, setAuthLoading] = useState(true);
+
     // Apply theme on mount and changes
     useEffect(() => {
         applyTheme(theme);
@@ -115,6 +121,38 @@ function App() {
         mediaQuery.addEventListener('change', handleChange);
         return () => mediaQuery.removeEventListener('change', handleChange);
     }, [theme]);
+
+    // Check auth on mount and listen for changes
+    useEffect(() => {
+        // If auth not enabled, skip auth check
+        if (!isAuthEnabled()) {
+            setAuthLoading(false);
+            return;
+        }
+
+        // Check current session
+        getCurrentUser().then(u => {
+            setUser(u);
+            setAuthLoading(false);
+        });
+
+        // Listen for auth changes
+        const { unsubscribe } = onAuthStateChange((u) => {
+            setUser(u);
+        });
+
+        return () => unsubscribe();
+    }, []);
+
+    // Handle logout
+    const handleLogout = async () => {
+        try {
+            await signOut();
+            setUser(null);
+        } catch (err) {
+            console.error('Logout failed:', err);
+        }
+    };
 
     // Keyboard shortcuts
     useEffect(() => {
@@ -228,6 +266,23 @@ function App() {
         billing.loadBillForEdit(bill, allMedicines);
     }, [billing, allMedicines]);
 
+    // Auth loading state
+    if (authLoading) {
+        return (
+            <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-900">
+                <div className="text-center">
+                    <div className="w-12 h-12 border-4 border-medical-blue border-t-transparent rounded-full animate-spin mx-auto mb-4" />
+                    <p className="text-gray-600 dark:text-gray-400">Checking authentication...</p>
+                </div>
+            </div>
+        );
+    }
+
+    // Login gate - show login page if auth is enabled and user not logged in
+    if (isAuthEnabled() && !user) {
+        return <LoginPage onLogin={() => getCurrentUser().then(setUser)} />;
+    }
+
     if (loading) {
         return (
             <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-900">
@@ -277,6 +332,19 @@ function App() {
                             >
                                 <Settings size={20} />
                             </button>
+
+                            {/* Logout Button - only show if auth enabled */}
+                            {isAuthEnabled() && user && (
+                                <button
+                                    onClick={handleLogout}
+                                    className="p-2 text-gray-600 dark:text-gray-400 hover:bg-red-100 hover:text-red-600
+                                             dark:hover:bg-red-900/30 dark:hover:text-red-400 rounded-lg transition-colors"
+                                    title={`Logout (${user.email})`}
+                                    aria-label="Logout"
+                                >
+                                    <LogOut size={20} />
+                                </button>
+                            )}
 
                             {/* Theme Toggle */}
                             <button
