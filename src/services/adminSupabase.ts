@@ -92,20 +92,23 @@ export async function createPharmacyClient(input: ClientInput, created_by: strin
 
     let userId: string | undefined;
 
-    // Check if this is a demo account (skip email verification only for demos)
+    // Check if this is a demo account
     const isDemoAccount = input.plan_id === 'demo_3day';
 
     // Step 1: Create auth user for client login
-    if (supabaseAdmin && isDemoAccount) {
-        // Demo accounts: Use admin API to create user WITHOUT email verification
+    // Use admin API when available (skips email verification)
+    // This is preferred for admin-created accounts as clients get credentials directly
+    if (supabaseAdmin) {
+        // Use admin API to create user WITHOUT email verification
         const { data: authData, error: authError } = await supabaseAdmin.auth.admin.createUser({
             email: input.email,
             password: password,
-            email_confirm: true, // Skip email verification for demos only!
+            email_confirm: true, // Skip email verification - admin creates account directly
             user_metadata: {
                 role: 'client',
                 pharmacy_name: input.pharmacy_name,
-                is_demo: true
+                is_demo: isDemoAccount,
+                plan_type: input.plan_id
             }
         });
 
@@ -114,7 +117,9 @@ export async function createPharmacyClient(input: ClientInput, created_by: strin
         }
         userId = authData.user?.id;
     } else {
-        // Real clients: Use regular signUp (requires email verification)
+        // Fallback: Use regular signUp (requires email verification)
+        // This path is only used if service role key is NOT configured
+        console.warn('[AdminSupabase] Service role key not configured - using signUp (requires email verification)');
         const { data: authData, error: authError } = await supabase.auth.signUp({
             email: input.email,
             password: password,
@@ -122,7 +127,8 @@ export async function createPharmacyClient(input: ClientInput, created_by: strin
                 data: {
                     role: 'client',
                     pharmacy_name: input.pharmacy_name,
-                    is_demo: false
+                    is_demo: isDemoAccount,
+                    plan_type: input.plan_id
                 }
             }
         });
