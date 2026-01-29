@@ -4,6 +4,7 @@
 import { useState, useCallback, useMemo } from 'react';
 import { Medicine, CartItem, Bill, BillItem } from '../types/medicine';
 import { createBill, updateBill, getAllBills, exportBillsToCSV } from '../services/storage';
+import { useRole } from '../context/RoleContext';
 
 /** Low stock threshold - matches inventory alerts */
 export const LOW_STOCK_THRESHOLD = 10;
@@ -78,6 +79,9 @@ export function useBilling(): UseBillingReturn {
     const [successMessage, setSuccessMessage] = useState<string | null>(null);
     const [loading, setLoading] = useState(false);
     const [editingBill, setEditingBill] = useState<Bill | null>(null);
+
+    // Activity logging from role context
+    const { logActivity } = useRole();
 
     // Derived state
     const isEditMode = editingBill !== null;
@@ -476,10 +480,12 @@ export function useBilling(): UseBillingReturn {
                 const originalItems = editingBill.items;
                 bill = await updateBill(editingBill.id, billItems, discountPercent, originalItems, customerName, customerPhone, doctorName);
                 setSuccessMessage(`Bill ${bill.billNumber} updated successfully!`);
+                logActivity('bill_edit', 'bill', bill.id, `Updated bill ${bill.billNumber}`);
             } else {
                 // Create new bill
                 bill = await createBill(billItems.filter(i => i.quantity > 0), discountPercent, customerName, customerPhone, doctorName);
                 setSuccessMessage(`Bill ${bill.billNumber} created! Total: ₹${bill.grandTotal.toFixed(2)}`);
+                logActivity('bill_create', 'bill', bill.id, `Created bill ${bill.billNumber} for ₹${bill.grandTotal.toFixed(2)}`);
             }
 
             // Clear cart after successful billing
@@ -499,7 +505,7 @@ export function useBilling(): UseBillingReturn {
         } finally {
             setLoading(false);
         }
-    }, [cart, discountPercent, customerName, customerPhone, doctorName, isEditMode, editingBill, clearCart]);
+    }, [cart, discountPercent, customerName, customerPhone, doctorName, isEditMode, editingBill, clearCart, logActivity]);
 
     /**
      * Load bill history from storage

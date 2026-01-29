@@ -6,8 +6,9 @@
 
 import { useEffect, useRef } from 'react';
 import { Bill } from '../types/medicine';
-import { X, Printer } from 'lucide-react';
+import { X, Printer, MessageCircle } from 'lucide-react';
 import { loadSettings, ShopDetails } from './SettingsModal';
+import { sendReceiptViaWhatsApp, isValidWhatsAppNumber } from '../services/whatsapp';
 import '../styles/print.css';
 
 interface BillReceiptModalProps {
@@ -65,6 +66,36 @@ export function BillReceiptModal({ bill, onClose }: BillReceiptModalProps) {
         window.print();
     };
 
+    /** Handle WhatsApp share */
+    const handleWhatsAppShare = () => {
+        const phone = window.prompt('Enter customer WhatsApp number:', bill.customerPhone || '');
+        if (!phone) return;
+
+        if (!isValidWhatsAppNumber(phone)) {
+            alert('Please enter a valid phone number');
+            return;
+        }
+
+        const items = bill.items.map(item => ({
+            name: item.medicineName,
+            quantity: item.quantity,
+            amount: item.total
+        }));
+
+        sendReceiptViaWhatsApp(
+            phone,
+            bill.billNumber,
+            bill.createdAt,
+            items,
+            bill.subtotal,
+            bill.discountAmount,
+            0, // No taxAmount field in current Bill type
+            bill.grandTotal,
+            shop.name || 'Pharmacy',
+            shop.phone1
+        );
+    };
+
     /** Build address string */
     const getFullAddress = () => {
         const parts = [
@@ -102,6 +133,15 @@ export function BillReceiptModal({ bill, onClose }: BillReceiptModalProps) {
                             aria-label="Print receipt"
                         >
                             <Printer size={20} />
+                        </button>
+                        <button
+                            onClick={handleWhatsAppShare}
+                            className="p-2 text-gray-600 dark:text-gray-400 hover:text-green-500 hover:bg-green-50 
+                                     dark:hover:bg-green-900/20 rounded-lg transition-colors"
+                            title="Send via WhatsApp"
+                            aria-label="Send receipt via WhatsApp"
+                        >
+                            <MessageCircle size={20} />
                         </button>
                         <button
                             onClick={onClose}

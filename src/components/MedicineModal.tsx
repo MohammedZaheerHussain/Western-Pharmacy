@@ -3,7 +3,7 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { Medicine, MedicineCategory, MEDICINE_CATEGORIES, MedicineLocation, MedicineSchedule, MEDICINE_SCHEDULES } from '../types/medicine';
-import { X, ChevronDown, ChevronUp, Clock, Plus, Trash2, Package } from 'lucide-react';
+import { X, ChevronDown, ChevronUp, Clock, Plus, Trash2, Package, ScanLine } from 'lucide-react';
 import { generateBatchId } from '../services/storage';
 import { MedicineAutocomplete } from './MedicineAutocomplete';
 import { MedicineTemplate } from '../data/medicineDatabase';
@@ -33,6 +33,7 @@ export interface MedicineFormData {
     tabletsPerStrip: number; // Tablets per strip (for loose medicine billing)
     unitPrice: number;
     location: MedicineLocation;
+    barcode?: string; // EAN/UPC barcode for scanning (Pro feature)
     // Multi-batch support
     batches: BatchEntry[];
     // Computed from batches
@@ -61,6 +62,7 @@ const initialFormData: MedicineFormData = {
     tabletsPerStrip: 10, // Default for tablets
     unitPrice: 0,
     location: { rack: '', shelf: '', drawer: '' },
+    barcode: '', // Pro feature
     batches: [createEmptyBatch()],
     quantity: 0,
     batchNumber: '',
@@ -120,6 +122,7 @@ export function MedicineModal({ isOpen, medicine, onClose, onSave }: MedicineMod
                     tabletsPerStrip: medicine.tabletsPerStrip || 1,
                     unitPrice: medicine.unitPrice || 0,
                     location: { ...medicine.location },
+                    barcode: medicine.barcode || '',
                     batches,
                     quantity: medicine.quantity,
                     batchNumber: medicine.batchNumber,
@@ -428,6 +431,27 @@ export function MedicineModal({ isOpen, medicine, onClose, onSave }: MedicineMod
                                     </option>
                                 ))}
                             </select>
+                        </div>
+
+                        {/* Barcode (Pro Feature) */}
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                                <span className="flex items-center gap-1.5">
+                                    <ScanLine size={14} className="text-amber-500" />
+                                    Barcode
+                                    <span className="text-xs bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 px-1.5 py-0.5 rounded">Pro</span>
+                                </span>
+                            </label>
+                            <input
+                                type="text"
+                                value={formData.barcode || ''}
+                                onChange={(e) => updateField('barcode', e.target.value)}
+                                className="w-full px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-600
+                                         bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100
+                                         focus:border-medical-blue focus:ring-2 focus:ring-medical-blue/20"
+                                placeholder="e.g., 8901234567890"
+                            />
+                            <p className="text-xs text-gray-400 mt-0.5">EAN-13, EAN-8, UPC-A, or UPC-E barcode for quick scanning</p>
                         </div>
 
                         {/* Unit Price */}

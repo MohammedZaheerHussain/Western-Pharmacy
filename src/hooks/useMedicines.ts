@@ -10,6 +10,7 @@ import {
     MedicineLocation
 } from '../types/medicine';
 import * as storage from '../services/storage';
+import { useRole } from '../context/RoleContext';
 
 // Helper to determine stock status
 export function getStockStatus(medicine: Medicine): StockStatus {
@@ -49,6 +50,9 @@ export function useMedicines() {
 
     const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
 
+    // Activity logging from role context
+    const { logActivity } = useRole();
+
     // Load medicines on mount
     useEffect(() => {
         async function loadMedicines() {
@@ -87,12 +91,13 @@ export function useMedicines() {
         try {
             await storage.addMedicine(medicine);
             await refresh();
+            logActivity('create', 'medicine', undefined, `Added medicine: ${medicine.name}`);
         } catch (err) {
             setError('Failed to add medicine');
             console.error(err);
             throw err;
         }
-    }, [refresh]);
+    }, [refresh, logActivity]);
 
     // Update medicine
     const updateMedicine = useCallback(async (
@@ -102,48 +107,52 @@ export function useMedicines() {
         try {
             await storage.updateMedicine(id, updates);
             await refresh();
+            logActivity('update', 'medicine', id, `Updated medicine`);
         } catch (err) {
             setError('Failed to update medicine');
             console.error(err);
             throw err;
         }
-    }, [refresh]);
+    }, [refresh, logActivity]);
 
     // Delete medicine
     const deleteMedicine = useCallback(async (id: string) => {
         try {
             await storage.deleteMedicine(id);
             await refresh();
+            logActivity('delete', 'medicine', id, `Deleted medicine`);
         } catch (err) {
             setError('Failed to delete medicine');
             console.error(err);
             throw err;
         }
-    }, [refresh]);
+    }, [refresh, logActivity]);
 
     // Bulk delete
     const bulkDelete = useCallback(async (ids: string[]) => {
         try {
             await storage.bulkDeleteMedicines(ids);
             await refresh();
+            logActivity('delete', 'medicine', undefined, `Bulk deleted ${ids.length} medicines`);
         } catch (err) {
             setError('Failed to delete medicines');
             console.error(err);
             throw err;
         }
-    }, [refresh]);
+    }, [refresh, logActivity]);
 
     // Bulk update location
     const bulkUpdateLocation = useCallback(async (ids: string[], location: MedicineLocation) => {
         try {
             await storage.bulkUpdateLocation(ids, location);
             await refresh();
+            logActivity('update', 'medicine', undefined, `Updated location for ${ids.length} medicines`);
         } catch (err) {
             setError('Failed to update locations');
             console.error(err);
             throw err;
         }
-    }, [refresh]);
+    }, [refresh, logActivity]);
 
     // Import medicines
     const importMedicines = useCallback(async (

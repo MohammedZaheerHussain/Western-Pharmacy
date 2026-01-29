@@ -30,11 +30,22 @@ import { AdminApp } from './pages/AdminApp';
 import { syncService } from './services/syncService';
 import { SyncStatusIndicator } from './components/SyncStatusIndicator';
 import { InstallButton, InstallSuccessToast } from './components/InstallButton';
-import { Plus, Package, Receipt, Sun, Moon, Settings, HardDrive, LogOut } from 'lucide-react';
+import { Plus, Package, Receipt, Sun, Moon, Settings, HardDrive, LogOut, BarChart3, Truck, ShoppingCart, TrendingUp, ScanLine } from 'lucide-react';
+import { Reports } from './pages/Reports';
+import { Suppliers } from './pages/Suppliers';
+import { Purchases } from './pages/Purchases';
+import { AdvancedReports } from './pages/AdvancedReports';
+import { StaffManagement } from './pages/StaffManagement';
+import { ActivityLogs } from './pages/ActivityLogs';
+import { BarcodeScanner } from './components/BarcodeScanner';
+import { ExpiryAlertBanner } from './components/ExpiryAlertBanner';
 import { getCurrentUser, signOut, onAuthStateChange, isAuthEnabled, AuthUser, isSuperAdmin, isEmailVerified } from './services/auth';
 import { EmailVerificationGate } from './components/EmailVerificationGate';
+import { SettlementModal } from './components/SettlementModal';
+import { Settlement } from './types/user';
+import { Users, ClipboardList, Calculator } from 'lucide-react';
 
-type ViewMode = 'inventory' | 'billing';
+type ViewMode = 'inventory' | 'billing' | 'reports' | 'suppliers' | 'purchases' | 'analytics' | 'staff' | 'activity';
 type Theme = 'light' | 'dark' | 'system';
 
 /** Get initial theme from localStorage or system preference */
@@ -56,6 +67,16 @@ function applyTheme(theme: Theme) {
     } else {
         root.classList.toggle('dark', theme === 'dark');
     }
+}
+
+/** Format number as Indian Rupees */
+function formatCurrency(amount: number): string {
+    return new Intl.NumberFormat('en-IN', {
+        style: 'currency',
+        currency: 'INR',
+        minimumFractionDigits: 0,
+        maximumFractionDigits: 2
+    }).format(amount);
 }
 
 function App() {
@@ -104,6 +125,8 @@ function App() {
     const [settingsModal, setSettingsModal] = useState(false);
     const [backupModal, setBackupModal] = useState(false);
     const [settings, setSettings] = useState<PharmacySettings>(loadSettings);
+    const [barcodeScannerOpen, setBarcodeScannerOpen] = useState(false);
+    const [settlementModal, setSettlementModal] = useState(false);
 
     // Auth state
     const [user, setUser] = useState<AuthUser | null>(null);
@@ -452,6 +475,83 @@ function App() {
                                     <Receipt size={16} />
                                     <span className="hidden sm:inline">Billing</span>
                                 </button>
+                                <button
+                                    onClick={() => setViewMode('reports')}
+                                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium transition-colors
+                                        ${viewMode === 'reports'
+                                            ? 'bg-white dark:bg-gray-600 text-gray-900 dark:text-gray-100 shadow-sm'
+                                            : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200'}`}
+                                >
+                                    <BarChart3 size={16} />
+                                    <span className="hidden sm:inline">Reports</span>
+                                </button>
+
+                                {/* Pro Features Dropdown */}
+                                <div className="relative group">
+                                    <button
+                                        className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium transition-colors
+                                            ${['suppliers', 'purchases', 'analytics'].includes(viewMode)
+                                                ? 'bg-gradient-to-r from-amber-500 to-orange-500 text-white shadow-sm'
+                                                : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200'}`}
+                                    >
+                                        <TrendingUp size={16} />
+                                        <span className="hidden sm:inline">Pro</span>
+                                    </button>
+                                    <div className="absolute top-full left-0 mt-1 w-40 bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-50">
+                                        <button
+                                            onClick={() => setViewMode('suppliers')}
+                                            className={`w-full flex items-center gap-2 px-3 py-2 text-sm text-left hover:bg-gray-100 dark:hover:bg-gray-700 first:rounded-t-lg ${viewMode === 'suppliers' ? 'text-medical-blue font-medium' : 'text-gray-700 dark:text-gray-300'}`}
+                                        >
+                                            <Truck size={14} />
+                                            Suppliers
+                                        </button>
+                                        <button
+                                            onClick={() => setViewMode('purchases')}
+                                            className={`w-full flex items-center gap-2 px-3 py-2 text-sm text-left hover:bg-gray-100 dark:hover:bg-gray-700 ${viewMode === 'purchases' ? 'text-medical-blue font-medium' : 'text-gray-700 dark:text-gray-300'}`}
+                                        >
+                                            <ShoppingCart size={14} />
+                                            Purchases
+                                        </button>
+                                        <button
+                                            onClick={() => setViewMode('analytics')}
+                                            className={`w-full flex items-center gap-2 px-3 py-2 text-sm text-left hover:bg-gray-100 dark:hover:bg-gray-700 ${viewMode === 'analytics' ? 'text-medical-blue font-medium' : 'text-gray-700 dark:text-gray-300'}`}
+                                        >
+                                            <TrendingUp size={14} />
+                                            Analytics
+                                        </button>
+                                        <button
+                                            onClick={() => setBarcodeScannerOpen(true)}
+                                            className="w-full flex items-center gap-2 px-3 py-2 text-sm text-left hover:bg-gray-100 dark:hover:bg-gray-700 last:rounded-b-lg text-gray-700 dark:text-gray-300"
+                                        >
+                                            <ScanLine size={14} />
+                                            Scan Barcode
+                                        </button>
+                                        {/* Premium Features Divider */}
+                                        <div className="border-t border-gray-200 dark:border-gray-600 my-1" />
+                                        <div className="px-3 py-1 text-xs font-medium text-gray-400 dark:text-gray-500">Premium</div>
+                                        <button
+                                            onClick={() => setViewMode('staff')}
+                                            className={`w-full flex items-center gap-2 px-3 py-2 text-sm text-left hover:bg-gray-100 dark:hover:bg-gray-700 ${viewMode === 'staff' ? 'text-medical-blue font-medium' : 'text-gray-700 dark:text-gray-300'}`}
+                                        >
+                                            <Users size={14} />
+                                            Staff
+                                        </button>
+                                        <button
+                                            onClick={() => setViewMode('activity')}
+                                            className={`w-full flex items-center gap-2 px-3 py-2 text-sm text-left hover:bg-gray-100 dark:hover:bg-gray-700 ${viewMode === 'activity' ? 'text-medical-blue font-medium' : 'text-gray-700 dark:text-gray-300'}`}
+                                        >
+                                            <ClipboardList size={14} />
+                                            Activity Logs
+                                        </button>
+                                        <button
+                                            onClick={() => setSettlementModal(true)}
+                                            className="w-full flex items-center gap-2 px-3 py-2 text-sm text-left hover:bg-gray-100 dark:hover:bg-gray-700 last:rounded-b-lg text-gray-700 dark:text-gray-300"
+                                        >
+                                            <Calculator size={14} />
+                                            Settlement
+                                        </button>
+                                    </div>
+                                </div>
                             </div>
 
                             {viewMode === 'inventory' && (
@@ -525,7 +625,8 @@ function App() {
                             onClear={clearSelection}
                         />
                     </>
-                ) : (
+                ) : viewMode === 'billing' ? (
+                    /* Billing View */
                     /* Billing View */
                     <BillingPanel
                         medicines={allMedicines}
@@ -563,8 +664,57 @@ function App() {
                         onEditBill={handleEditBill}
                         onCancelEdit={billing.cancelEdit}
                     />
+                ) : viewMode === 'suppliers' ? (
+                    /* Suppliers View */
+                    <Suppliers formatCurrency={formatCurrency} />
+                ) : viewMode === 'purchases' ? (
+                    /* Purchases View */
+                    <Purchases
+                        formatCurrency={formatCurrency}
+                        onNavigateToSuppliers={() => setViewMode('suppliers')}
+                    />
+                ) : viewMode === 'analytics' ? (
+                    /* Advanced Analytics View */
+                    <AdvancedReports settings={settings} formatCurrency={formatCurrency} />
+                ) : viewMode === 'staff' ? (
+                    /* Staff Management View */
+                    <StaffManagement />
+                ) : viewMode === 'activity' ? (
+                    /* Activity Logs View */
+                    <ActivityLogs />
+                ) : (
+                    /* Reports View */
+                    <Reports
+                        settings={settings}
+                        formatCurrency={formatCurrency}
+                    />
                 )}
             </main>
+
+            {/* Expiry Alert Banner - shown above main content */}
+            {!['reports', 'analytics'].includes(viewMode) && (
+                <ExpiryAlertBanner onViewReport={() => setViewMode('reports')} />
+            )}
+
+            {/* Barcode Scanner Modal */}
+            <BarcodeScanner
+                isOpen={barcodeScannerOpen}
+                onClose={() => setBarcodeScannerOpen(false)}
+                onScan={(barcode) => {
+                    // Search for medicine by barcode
+                    const medicine = allMedicines.find(m => m.barcode === barcode);
+
+                    if (medicine) {
+                        // Switch to billing view and add to cart
+                        setViewMode('billing');
+                        billing.addToCart(medicine, 1); // Add 1 strip by default
+                        setBarcodeScannerOpen(false);
+                    } else {
+                        // Medicine not found - show alert
+                        alert(`No medicine found with barcode: ${barcode}\n\nPlease add the barcode to the medicine in inventory first.`);
+                    }
+                }}
+            />
 
             {/* Modals */}
             <MedicineModal
@@ -613,6 +763,19 @@ function App() {
                 onClose={() => setBackupModal(false)}
                 onBackupComplete={() => { }}
                 onRestoreComplete={refreshMedicines}
+            />
+
+            {/* Settlement Modal */}
+            <SettlementModal
+                isOpen={settlementModal}
+                onClose={() => setSettlementModal(false)}
+                onComplete={async (settlement: Settlement) => {
+                    console.log('Settlement completed:', settlement);
+                    // TODO: Save settlement to IndexedDB
+                    setSettlementModal(false);
+                }}
+                currentUserName={user?.email?.split('@')[0] || 'Owner'}
+                formatCurrency={formatCurrency}
             />
         </div>
     );

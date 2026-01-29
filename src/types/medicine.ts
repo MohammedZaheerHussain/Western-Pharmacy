@@ -25,6 +25,12 @@ export interface Batch {
     expiryDate: string;
     quantity: number;
     unitPrice: number; // Price per strip for this specific batch
+
+    // Purchase tracking (Pro/Premium feature)
+    purchasePrice?: number;     // Cost price per strip
+    supplierId?: string;        // Which supplier
+    purchaseOrderId?: string;   // Which PO
+    margin?: number;            // Profit margin %
 }
 
 export interface Medicine {
@@ -51,6 +57,14 @@ export interface Medicine {
 
     unitPrice: number; // Price per STRIP in INR
     location: MedicineLocation;
+
+    // GST fields
+    hsn?: string;      // HSN code (default: 3004 for medicines)
+    taxRate?: number;  // GST rate: 0, 5, 12, or 18
+
+    // Barcode (Pro feature)
+    barcode?: string;  // EAN/UPC barcode for quick scanning
+
     createdAt: string;
     updatedAt: string;
     auditHistory: AuditEntry[];
