@@ -129,3 +129,64 @@ export function isAuthEnabled(): boolean {
 export function isSuperAdmin(user: AuthUser | null): boolean {
     return user?.role === 'super_admin';
 }
+
+/**
+ * Check if current user's email is verified
+ * Super admins are always considered verified
+ */
+export async function isEmailVerified(): Promise<boolean> {
+    if (!supabase) return true; // No auth = skip verification
+
+    const { data: { user } } = await supabase.auth.getUser();
+
+    if (!user) return false;
+
+    // Super admins are always verified
+    if (user.user_metadata?.role === 'super_admin') return true;
+
+    // Check email_confirmed_at field
+    return !!user.email_confirmed_at;
+}
+
+/**
+ * Resend verification email to current user
+ */
+export async function resendVerificationEmail(): Promise<void> {
+    if (!supabase) {
+        throw new Error('Authentication not configured');
+    }
+
+    const { data: { user } } = await supabase.auth.getUser();
+
+    if (!user?.email) {
+        throw new Error('No email address found');
+    }
+
+    // Use Supabase's resend method
+    const { error } = await supabase.auth.resend({
+        type: 'signup',
+        email: user.email
+    });
+
+    if (error) {
+        throw new Error(error.message);
+    }
+}
+
+/**
+ * Refresh current session to check for updated verification status
+ */
+export async function refreshSession(): Promise<AuthUser | null> {
+    if (!supabase) return null;
+
+    const { data: { session }, error } = await supabase.auth.refreshSession();
+
+    if (error || !session?.user) return null;
+
+    return {
+        id: session.user.id,
+        email: session.user.email || '',
+        role: getUserRole(session.user.user_metadata),
+        pharmacyName: session.user.user_metadata?.pharmacy_name
+    };
+}

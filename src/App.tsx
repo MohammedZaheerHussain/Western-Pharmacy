@@ -31,7 +31,8 @@ import { syncService } from './services/syncService';
 import { SyncStatusIndicator } from './components/SyncStatusIndicator';
 import { InstallButton, InstallSuccessToast } from './components/InstallButton';
 import { Plus, Package, Receipt, Sun, Moon, Settings, HardDrive, LogOut } from 'lucide-react';
-import { getCurrentUser, signOut, onAuthStateChange, isAuthEnabled, AuthUser, isSuperAdmin } from './services/auth';
+import { getCurrentUser, signOut, onAuthStateChange, isAuthEnabled, AuthUser, isSuperAdmin, isEmailVerified } from './services/auth';
+import { EmailVerificationGate } from './components/EmailVerificationGate';
 
 type ViewMode = 'inventory' | 'billing';
 type Theme = 'light' | 'dark' | 'system';
@@ -107,6 +108,7 @@ function App() {
     // Auth state
     const [user, setUser] = useState<AuthUser | null>(null);
     const [authLoading, setAuthLoading] = useState(true);
+    const [emailVerified, setEmailVerified] = useState<boolean | null>(null); // null = checking
 
     // Initialize Sync Service
     useEffect(() => {
@@ -150,12 +152,18 @@ function App() {
         }
 
         // Check current session
-        getCurrentUser().then(u => {
+        getCurrentUser().then(async u => {
             setUser(u);
-            if (u?.pharmacyName) {
-                // Initialize settings with pharmacy name
-                const newSettings = initializeSettingsFromUserMetadata(u.pharmacyName);
-                setSettings(newSettings);
+            if (u) {
+                // Check email verification status
+                const verified = await isEmailVerified();
+                setEmailVerified(verified);
+
+                if (u.pharmacyName) {
+                    // Initialize settings with pharmacy name
+                    const newSettings = initializeSettingsFromUserMetadata(u.pharmacyName);
+                    setSettings(newSettings);
+                }
             }
             setAuthLoading(false);
         });
@@ -309,12 +317,33 @@ function App() {
 
     // Login gate - show login page if auth is enabled and user not logged in
     if (isAuthEnabled() && !user) {
-        return <LoginPage onLogin={() => getCurrentUser().then(setUser)} />;
+        return <LoginPage onLogin={async () => {
+            const u = await getCurrentUser();
+            setUser(u);
+            if (u) {
+                const verified = await isEmailVerified();
+                setEmailVerified(verified);
+            }
+        }} />;
     }
 
     // Role-based routing - super admin sees admin dashboard
     if (isSuperAdmin(user)) {
         return <AdminApp user={user!} onLogout={() => setUser(null)} />;
+    }
+
+    // Email verification gate - block unverified clients
+    if (isAuthEnabled() && user && emailVerified === false) {
+        return (
+            <EmailVerificationGate
+                user={user}
+                onVerified={() => setEmailVerified(true)}
+                onLogout={() => {
+                    setUser(null);
+                    setEmailVerified(null);
+                }}
+            />
+        );
     }
 
     if (loading) {
