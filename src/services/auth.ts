@@ -132,7 +132,7 @@ export function isSuperAdmin(user: AuthUser | null): boolean {
 
 /**
  * Check if current user's email is verified
- * Super admins are always considered verified
+ * Super admins and demo accounts are always considered verified
  */
 export async function isEmailVerified(): Promise<boolean> {
     if (!supabase) return true; // No auth = skip verification
@@ -143,6 +143,9 @@ export async function isEmailVerified(): Promise<boolean> {
 
     // Super admins are always verified
     if (user.user_metadata?.role === 'super_admin') return true;
+
+    // Demo accounts skip verification (they might not have real emails)
+    if (user.user_metadata?.is_demo === true) return true;
 
     // Check email_confirmed_at field
     return !!user.email_confirmed_at;
