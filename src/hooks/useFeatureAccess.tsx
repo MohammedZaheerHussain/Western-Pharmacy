@@ -37,6 +37,11 @@ interface FeatureAccess {
     planDisplayName: string;
     isDemo: boolean;
     effectiveTier: 'basic' | 'pro' | 'premium';
+
+    // Demo expiry
+    isDemoExpired: boolean;
+    demoExpiresAt: string | null;
+    daysRemaining: number;
 }
 
 /** Get current user plan from settings/auth */
@@ -91,6 +96,13 @@ export function useFeatureAccess(settings: PharmacySettings): FeatureAccess {
         const isPro = tier === 'pro' || tier === 'premium';
         const isPremium = tier === 'premium';
 
+        // Check demo expiry
+        const demoExpiresAt = settings?.demoExpiresAt;
+        const expiryDate = demoExpiresAt ? new Date(demoExpiresAt) : null;
+        const now = new Date();
+        const isDemoExpired = isDemo && expiryDate ? now > expiryDate : false;
+        const daysRemaining = expiryDate ? Math.max(0, Math.ceil((expiryDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24))) : 0;
+
         return {
             // Basic features - all plans
             canAccessInventory: true,
@@ -119,7 +131,12 @@ export function useFeatureAccess(settings: PharmacySettings): FeatureAccess {
             currentPlan: plan,
             planDisplayName: getPlanDisplayName(plan),
             isDemo,
-            effectiveTier: tier
+            effectiveTier: tier,
+
+            // Demo expiry
+            isDemoExpired,
+            demoExpiresAt: demoExpiresAt || null,
+            daysRemaining
         };
     }, [plan]);
 }

@@ -46,6 +46,8 @@ export interface PharmacySettings {
     gstPercentage: number;
     printer: PrinterSettings;
     shop: ShopDetails;
+    // Demo expiry tracking
+    demoExpiresAt?: string;  // ISO date string
 }
 
 const DEFAULT_SHOP: ShopDetails = {

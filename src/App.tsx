@@ -80,6 +80,59 @@ function formatCurrency(amount: number): string {
     }).format(amount);
 }
 
+/** Demo Expired Overlay - Full-screen blocking overlay for expired demos */
+function DemoExpiredOverlay() {
+    return (
+        <div className="fixed inset-0 z-[9999] bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 flex items-center justify-center p-4">
+            <div className="max-w-md w-full text-center">
+                {/* Logo */}
+                <div className="w-20 h-20 mx-auto mb-6 bg-white/10 rounded-2xl flex items-center justify-center backdrop-blur">
+                    <img src="/billova-logo.png" alt="Billova" className="w-14 h-14 object-contain" />
+                </div>
+
+                {/* Lock Icon */}
+                <div className="w-16 h-16 mx-auto mb-4 bg-red-500/20 rounded-full flex items-center justify-center">
+                    <Lock size={32} className="text-red-400" />
+                </div>
+
+                {/* Title */}
+                <h1 className="text-2xl font-bold text-white mb-2">
+                    Your Demo Has Expired
+                </h1>
+
+                {/* Message */}
+                <p className="text-gray-400 mb-8">
+                    Your 3-day trial period has ended. To continue using Billova Medical Billing,
+                    please upgrade your license.
+                </p>
+
+                {/* Contact Info */}
+                <div className="bg-white/5 rounded-xl p-6 backdrop-blur border border-white/10">
+                    <p className="text-sm text-gray-500 mb-4">Contact Billova Team to upgrade:</p>
+
+                    <a
+                        href="mailto:billovamedical@gmail.com?subject=Demo Expired - License Upgrade Request"
+                        className="flex items-center justify-center gap-2 w-full py-3 px-4 bg-blue-600 hover:bg-blue-700 
+                                   text-white font-medium rounded-lg transition-colors mb-3"
+                    >
+                        <Mail size={18} />
+                        billovamedical@gmail.com
+                    </a>
+
+                    <p className="text-xs text-gray-500">
+                        We'll help you get set up with the right plan for your pharmacy.
+                    </p>
+                </div>
+
+                {/* Branding */}
+                <p className="text-xs text-gray-600 mt-6">
+                    Powered by Billova Medical Billing
+                </p>
+            </div>
+        </div>
+    );
+}
+
 function App() {
     const {
         medicines,
@@ -371,6 +424,11 @@ function App() {
                 }}
             />
         );
+    }
+
+    // Demo expired gate - block expired demo accounts
+    if (featureAccess.isDemoExpired) {
+        return <DemoExpiredOverlay />;
     }
 
     if (loading) {
