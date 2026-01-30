@@ -186,6 +186,24 @@ export async function createPharmacyClient(input: ClientInput, created_by: strin
         throw new Error(`Failed to create client: ${error.message}`);
     }
 
+    // Step 4: For demo accounts, automatically create a 3-day license
+    if (isDemoAccount && data) {
+        const now = new Date();
+        const expiry = new Date(now);
+        expiry.setDate(expiry.getDate() + 3); // 3 days from now
+
+        await supabase
+            .from('licenses')
+            .insert({
+                client_id: data.id,
+                license_key: `DEMO-${Date.now().toString(36).toUpperCase()}`,
+                duration: '3_days',
+                starts_at: now.toISOString(),
+                expires_at: expiry.toISOString(),
+                is_active: true
+            });
+    }
+
     return {
         client: data,
         credentials: {
