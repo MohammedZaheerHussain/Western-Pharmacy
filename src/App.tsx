@@ -616,20 +616,20 @@ function App() {
                                                 )}
                                             </button>
                                             <button
-                                                onClick={() => featureAccess.canAccessSuppliers
+                                                onClick={() => featureAccess.canAccessStaffManagement
                                                     ? setViewMode('customers')
-                                                    : alert('Customers & Loyalty is a Pro feature. Upgrade your plan to access.')}
+                                                    : alert('Customers & Loyalty is a Premium feature. Upgrade your plan to access.')}
                                                 className={`w-full flex items-center justify-between gap-2 px-3 py-2 text-sm text-left hover:bg-gray-100 dark:hover:bg-gray-700 
-                                                    ${!featureAccess.canAccessSuppliers ? 'opacity-60' : ''} 
+                                                    ${!featureAccess.canAccessStaffManagement ? 'opacity-60' : ''} 
                                                     ${viewMode === 'customers' ? 'text-purple-600 font-medium' : 'text-gray-700 dark:text-gray-300'}`}
                                             >
                                                 <span className="flex items-center gap-2">
                                                     <Users size={14} />
                                                     Customers
                                                 </span>
-                                                {!featureAccess.canAccessSuppliers && (
-                                                    <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-blue-100 text-blue-700 dark:bg-blue-900/50 dark:text-blue-300">
-                                                        <Lock size={8} className="inline mr-0.5" />Pro
+                                                {!featureAccess.canAccessStaffManagement && (
+                                                    <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-purple-100 text-purple-700 dark:bg-purple-900/50 dark:text-purple-300">
+                                                        <Lock size={8} className="inline mr-0.5" />Premium
                                                     </span>
                                                 )}
                                             </button>
@@ -851,9 +851,9 @@ function App() {
                 ) : viewMode === 'customers' ? (
                     /* Customers & Loyalty View */
                     <FeatureGate
-                        hasAccess={featureAccess.canAccessSuppliers}
+                        hasAccess={featureAccess.canAccessStaffManagement}
                         feature="Customers & Loyalty"
-                        requiredPlan="pro"
+                        requiredPlan="premium"
                         showPreview
                     >
                         <CustomersPage />
