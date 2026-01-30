@@ -58,6 +58,16 @@ export function SyncStatusIndicator({ className = '', showDetails = false }: Syn
                 description: 'Click to sync now'
             };
         }
+        // Only show "Synced" if we've actually synced before
+        if (lastSyncedAgo === 'Never') {
+            return {
+                color: 'text-gray-400',
+                bgColor: 'bg-gray-100 dark:bg-gray-700/30',
+                Icon: Cloud,
+                label: 'Not synced',
+                description: 'Click to sync your data'
+            };
+        }
         return {
             color: 'text-green-500',
             bgColor: 'bg-green-100 dark:bg-green-900/30',
