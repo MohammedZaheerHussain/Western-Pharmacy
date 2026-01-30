@@ -3,13 +3,14 @@
  */
 
 import { useEffect, useState } from 'react';
-import { ArrowLeft, Key, Copy, Check, Palette, Clock } from 'lucide-react';
+import { ArrowLeft, Key, Copy, Check, Palette, Clock, Ban, RefreshCw } from 'lucide-react';
 import {
     getClientById,
     createLicense,
     getLicensesByClientId,
     upsertBranding,
-    getBrandingByClientId
+    getBrandingByClientId,
+    updateClientStatus
 } from '../../services/adminSupabase';
 
 interface License {
@@ -248,6 +249,47 @@ export default function ClientDetail({ clientId, onBack }: ClientDetailProps) {
                             >
                                 ⬆️ Upgrade Plan
                             </button>
+                            {/* Force Deactivate Button */}
+                            {client.status === 'active' ? (
+                                <button
+                                    onClick={async () => {
+                                        if (confirm('⚠️ Force Deactivate this client?\n\nThis will:\n• Suspend their account immediately\n• Log them out if currently using the app\n• Block all access until reactivated\n\nAre you sure?')) {
+                                            try {
+                                                await updateClientStatus(client.id, 'suspended');
+                                                // Refresh client data
+                                                const updated = await getClientById(client.id);
+                                                setClient(updated);
+                                            } catch (err) {
+                                                alert('Failed to deactivate: ' + (err instanceof Error ? err.message : 'Unknown error'));
+                                            }
+                                        }
+                                    }}
+                                    className="px-4 py-2 bg-gradient-to-r from-red-500 to-red-600 text-white text-sm font-semibold rounded-lg 
+                                             hover:from-red-600 hover:to-red-700 transition-all shadow-sm flex items-center gap-2"
+                                >
+                                    <Ban size={14} />
+                                    Force Deactivate
+                                </button>
+                            ) : (
+                                <button
+                                    onClick={async () => {
+                                        if (confirm('Reactivate this client?\n\nThis will restore their access to the app.')) {
+                                            try {
+                                                await updateClientStatus(client.id, 'active');
+                                                const updated = await getClientById(client.id);
+                                                setClient(updated);
+                                            } catch (err) {
+                                                alert('Failed to reactivate: ' + (err instanceof Error ? err.message : 'Unknown error'));
+                                            }
+                                        }
+                                    }}
+                                    className="px-4 py-2 bg-gradient-to-r from-blue-500 to-blue-600 text-white text-sm font-semibold rounded-lg 
+                                             hover:from-blue-600 hover:to-blue-700 transition-all shadow-sm flex items-center gap-2"
+                                >
+                                    <RefreshCw size={14} />
+                                    Reactivate
+                                </button>
+                            )}
                         </div>
                         {/* Days Remaining */}
                         {licenses.length > 0 && (() => {

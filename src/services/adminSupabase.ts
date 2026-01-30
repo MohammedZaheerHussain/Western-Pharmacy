@@ -254,6 +254,18 @@ export async function updateClientStatus(id: string, status: 'active' | 'expired
     return data;
 }
 
+/** Get client by auth user_id - used for suspension checks */
+export async function getClientByUserId(userId: string) {
+    const { data, error } = await supabase
+        .from('clients')
+        .select('id, status, pharmacy_name')
+        .eq('user_id', userId)
+        .single();
+
+    if (error && error.code !== 'PGRST116') throw error; // PGRST116 = not found
+    return data;
+}
+
 async function generateClientId(): Promise<string> {
     // Format: BILLOVA-XXX where XXX is incremental
     const { data } = await supabase
