@@ -3,8 +3,8 @@
  * Manages clients, licenses, and analytics
  */
 
-import { useState } from 'react';
-import { LayoutDashboard, Users, Plus, LogOut, ChevronLeft } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { LayoutDashboard, Users, Plus, LogOut, ChevronLeft, Sun, Moon } from 'lucide-react';
 import { AuthUser, signOut } from '../services/auth';
 import Dashboard from './admin/Dashboard';
 import Clients from './admin/Clients';
@@ -21,6 +21,26 @@ interface AdminAppProps {
 export function AdminApp({ user, onLogout }: AdminAppProps) {
     const [currentView, setCurrentView] = useState<AdminView>('dashboard');
     const [selectedClientId, setSelectedClientId] = useState<string | null>(null);
+    const [isDark, setIsDark] = useState(() => document.documentElement.classList.contains('dark'));
+
+    // Toggle theme
+    const toggleTheme = () => {
+        const html = document.documentElement;
+        if (html.classList.contains('dark')) {
+            html.classList.remove('dark');
+            localStorage.setItem('theme', 'light');
+            setIsDark(false);
+        } else {
+            html.classList.add('dark');
+            localStorage.setItem('theme', 'dark');
+            setIsDark(true);
+        }
+    };
+
+    // Sync theme state on mount
+    useEffect(() => {
+        setIsDark(document.documentElement.classList.contains('dark'));
+    }, []);
 
     const handleLogout = async () => {
         try {
@@ -143,6 +163,16 @@ export function AdminApp({ user, onLogout }: AdminAppProps) {
 
                             <div className="w-px h-6 bg-gray-300 dark:bg-gray-600 mx-2" />
 
+                            {/* Theme Toggle */}
+                            <button
+                                onClick={toggleTheme}
+                                className="p-2 text-gray-600 dark:text-gray-400 hover:bg-gray-100 
+                                         dark:hover:bg-gray-700 rounded-lg transition-colors"
+                                title={isDark ? 'Switch to light mode' : 'Switch to dark mode'}
+                            >
+                                {isDark ? <Sun size={20} /> : <Moon size={20} />}
+                            </button>
+
                             {/* Logout */}
                             <button
                                 onClick={handleLogout}
@@ -166,3 +196,4 @@ export function AdminApp({ user, onLogout }: AdminAppProps) {
 }
 
 export default AdminApp;
+

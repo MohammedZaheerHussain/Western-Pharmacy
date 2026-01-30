@@ -175,6 +175,27 @@ export default function ClientDetail({ clientId, onBack }: ClientDetailProps) {
         }
     };
 
+    const getDaysRemaining = (expiresAt: string | null): { days: number | null; label: string; color: string } => {
+        if (!expiresAt) {
+            return { days: null, label: '∞ Lifetime', color: 'text-green-600 dark:text-green-400' };
+        }
+
+        const now = new Date();
+        const expires = new Date(expiresAt);
+        const diffTime = expires.getTime() - now.getTime();
+        const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+
+        if (diffDays < 0) {
+            return { days: diffDays, label: 'Expired', color: 'text-red-600 dark:text-red-400' };
+        } else if (diffDays <= 7) {
+            return { days: diffDays, label: `${diffDays} days left`, color: 'text-red-600 dark:text-red-400' };
+        } else if (diffDays <= 30) {
+            return { days: diffDays, label: `${diffDays} days left`, color: 'text-yellow-600 dark:text-yellow-400' };
+        } else {
+            return { days: diffDays, label: `${diffDays} days left`, color: 'text-green-600 dark:text-green-400' };
+        }
+    };
+
     if (loading) {
         return <div className="card"><p>Loading...</p></div>;
     }
@@ -184,50 +205,78 @@ export default function ClientDetail({ clientId, onBack }: ClientDetailProps) {
     }
 
     return (
-        <div>
+        <div className="space-y-6">
             <button
                 onClick={onBack}
                 className="flex items-center gap-2 px-3 py-2 text-gray-600 dark:text-gray-400
-                         hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors mb-4"
+                         hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
             >
                 <ArrowLeft size={18} />
                 Back to Clients
             </button>
 
-            {/* Header */}
-            <div className="card">
-                <div className="flex justify-between items-center">
+            {/* Header Card */}
+            <div className="bg-white dark:bg-gray-800 rounded-xl p-6 shadow-sm border border-gray-200 dark:border-gray-700">
+                <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
                     <div>
-                        <h1 style={{ fontSize: '1.5rem', fontWeight: '600', marginBottom: '0.25rem' }}>
+                        <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100 mb-1">
                             {client.pharmacy_name}
                         </h1>
-                        <code style={{
-                            background: 'var(--gray-100)',
-                            padding: '0.25rem 0.5rem',
-                            borderRadius: '0.25rem',
-                            fontSize: '0.875rem'
-                        }}>
-                            {client.client_id}
-                        </code>
+                        <div className="flex items-center gap-3">
+                            <code className="px-2 py-1 bg-gray-100 dark:bg-gray-700 rounded text-sm font-mono text-gray-600 dark:text-gray-300">
+                                {client.client_id}
+                            </code>
+                            <span className={`px-2 py-1 text-xs font-medium rounded-full ${client.status === 'active'
+                                ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400'
+                                : 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400'
+                                }`}>
+                                {client.status}
+                            </span>
+                        </div>
                     </div>
-                    <div className="flex gap-2 items-center">
-                        <span className={`badge badge-${client.status === 'active' ? 'success' : 'danger'}`}>
-                            {client.status}
-                        </span>
-                        <span className="badge badge-primary">
-                            {client.plans?.display_name}
-                        </span>
+
+                    {/* Plan & Upgrade Section */}
+                    <div className="flex flex-col items-end gap-2">
+                        <div className="flex items-center gap-3">
+                            <span className="px-3 py-1.5 bg-indigo-100 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-400 text-sm font-semibold rounded-lg">
+                                {client.plans?.display_name || 'No Plan'}
+                            </span>
+                            <button
+                                onClick={() => setActiveTab('licenses')}
+                                className="px-4 py-2 bg-gradient-to-r from-green-500 to-emerald-600 text-white text-sm font-semibold rounded-lg 
+                                         hover:from-green-600 hover:to-emerald-700 transition-all shadow-sm"
+                            >
+                                ⬆️ Upgrade Plan
+                            </button>
+                        </div>
+                        {/* Days Remaining */}
+                        {licenses.length > 0 && (() => {
+                            const activeLicense = licenses.find(l => l.is_active);
+                            if (activeLicense) {
+                                const remaining = getDaysRemaining(activeLicense.expires_at);
+                                return (
+                                    <div className={`text-sm font-medium ${remaining.color}`}>
+                                        <Clock size={14} className="inline mr-1" />
+                                        {remaining.label}
+                                    </div>
+                                );
+                            }
+                            return null;
+                        })()}
                     </div>
                 </div>
             </div>
 
             {/* Tabs */}
-            <div className="flex gap-2 mb-4" style={{ marginTop: '1rem' }}>
+            <div className="flex gap-2 border-b border-gray-200 dark:border-gray-700">
                 {(['info', 'licenses', 'branding'] as const).map(tab => (
                     <button
                         key={tab}
                         onClick={() => setActiveTab(tab)}
-                        className={`btn ${activeTab === tab ? 'btn-primary' : 'btn-secondary'}`}
+                        className={`flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 transition-colors ${activeTab === tab
+                            ? 'border-indigo-500 text-indigo-600 dark:text-indigo-400'
+                            : 'border-transparent text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200'
+                            }`}
                     >
                         {tab === 'info' && 'Info'}
                         {tab === 'licenses' && <><Key size={16} /> Licenses</>}
@@ -238,32 +287,38 @@ export default function ClientDetail({ clientId, onBack }: ClientDetailProps) {
 
             {/* Info Tab */}
             {activeTab === 'info' && (
-                <div className="card">
-                    <h3 className="card-title mb-4">Client Information</h3>
-                    <div className="grid-2" style={{ gap: '1.5rem' }}>
+                <div className="bg-white dark:bg-gray-800 rounded-xl p-6 shadow-sm border border-gray-200 dark:border-gray-700">
+                    <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-6">Client Information</h3>
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                         <div>
-                            <p style={{ fontSize: '0.75rem', color: 'var(--gray-500)', marginBottom: '0.25rem' }}>Owner</p>
-                            <p>{client.owner_name || '-'}</p>
+                            <p className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-1">Owner</p>
+                            <p className="text-gray-900 dark:text-gray-100 font-medium">{client.owner_name || '-'}</p>
                         </div>
                         <div>
-                            <p style={{ fontSize: '0.75rem', color: 'var(--gray-500)', marginBottom: '0.25rem' }}>Phone</p>
-                            <p>{client.phone || '-'}</p>
+                            <p className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-1">Phone</p>
+                            <p className="text-gray-900 dark:text-gray-100 font-medium">{client.phone || '-'}</p>
                         </div>
                         <div>
-                            <p style={{ fontSize: '0.75rem', color: 'var(--gray-500)', marginBottom: '0.25rem' }}>Email</p>
-                            <p>{client.email || '-'}</p>
+                            <p className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-1">Email</p>
+                            <p className="text-gray-900 dark:text-gray-100 font-medium">{client.email || '-'}</p>
                         </div>
                         <div>
-                            <p style={{ fontSize: '0.75rem', color: 'var(--gray-500)', marginBottom: '0.25rem' }}>City</p>
-                            <p>{client.city || '-'}</p>
+                            <p className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-1">City</p>
+                            <p className="text-gray-900 dark:text-gray-100 font-medium">{client.city || '-'}</p>
                         </div>
                         <div>
-                            <p style={{ fontSize: '0.75rem', color: 'var(--gray-500)', marginBottom: '0.25rem' }}>GST Number</p>
-                            <p>{client.gst_number || '-'}</p>
+                            <p className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-1">GST Number</p>
+                            <p className="text-gray-900 dark:text-gray-100 font-medium">{client.gst_number || '-'}</p>
                         </div>
                         <div>
-                            <p style={{ fontSize: '0.75rem', color: 'var(--gray-500)', marginBottom: '0.25rem' }}>DL Numbers</p>
-                            <p>{client.dl_number_1 || '-'} / {client.dl_number_2 || '-'}</p>
+                            <p className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-1">DL Numbers</p>
+                            <p className="text-gray-900 dark:text-gray-100 font-medium">{client.dl_number_1 || '-'} / {client.dl_number_2 || '-'}</p>
+                        </div>
+                        <div className="md:col-span-2 lg:col-span-3">
+                            <p className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-1">Address</p>
+                            <p className="text-gray-900 dark:text-gray-100 font-medium">
+                                {[client.address, client.city, client.state, client.pincode].filter(Boolean).join(', ') || '-'}
+                            </p>
                         </div>
                     </div>
                 </div>

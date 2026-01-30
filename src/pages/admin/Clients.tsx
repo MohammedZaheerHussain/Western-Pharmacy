@@ -15,8 +15,10 @@ interface Client {
     city: string;
     status: string;
     created_at: string;
+    license_expires_at?: string;
     plans?: {
         display_name: string;
+        name: string;
     };
 }
 
@@ -65,12 +67,30 @@ export default function Clients({ onNavigateToCreateClient, onNavigateToClientDe
         }
     };
 
-    const formatDate = (dateString: string) => {
-        return new Date(dateString).toLocaleDateString('en-IN', {
-            day: '2-digit',
-            month: 'short',
-            year: 'numeric'
-        });
+    const getDaysRemaining = (expiresAt: string | undefined, planName?: string): { days: number | null; label: string; color: string } => {
+        // Lifetime plans don't expire
+        if (planName?.includes('lifetime')) {
+            return { days: null, label: '∞ Lifetime', color: 'text-green-600 dark:text-green-400' };
+        }
+
+        if (!expiresAt) {
+            return { days: null, label: '-', color: 'text-gray-400' };
+        }
+
+        const now = new Date();
+        const expires = new Date(expiresAt);
+        const diffTime = expires.getTime() - now.getTime();
+        const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+
+        if (diffDays < 0) {
+            return { days: diffDays, label: 'Expired', color: 'text-red-600 dark:text-red-400' };
+        } else if (diffDays <= 7) {
+            return { days: diffDays, label: `${diffDays}d left`, color: 'text-red-600 dark:text-red-400' };
+        } else if (diffDays <= 30) {
+            return { days: diffDays, label: `${diffDays}d left`, color: 'text-yellow-600 dark:text-yellow-400' };
+        } else {
+            return { days: diffDays, label: `${diffDays}d left`, color: 'text-green-600 dark:text-green-400' };
+        }
     };
 
     if (loading) {
@@ -128,8 +148,8 @@ export default function Clients({ onNavigateToCreateClient, onNavigateToClientDe
                                     <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Owner</th>
                                     <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">City</th>
                                     <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Plan</th>
+                                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Days Left</th>
                                     <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Status</th>
-                                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Created</th>
                                     <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Actions</th>
                                 </tr>
                             </thead>
@@ -155,10 +175,17 @@ export default function Clients({ onNavigateToCreateClient, onNavigateToClientDe
                                                 {client.plans?.display_name || '-'}
                                             </span>
                                         </td>
-                                        <td className="px-4 py-3">{getStatusBadge(client.status)}</td>
-                                        <td className="px-4 py-3 text-sm text-gray-500 dark:text-gray-400">
-                                            {formatDate(client.created_at)}
+                                        <td className="px-4 py-3">
+                                            {(() => {
+                                                const remaining = getDaysRemaining(client.license_expires_at, client.plans?.name);
+                                                return (
+                                                    <span className={`text-sm font-medium ${remaining.color}`}>
+                                                        {remaining.label}
+                                                    </span>
+                                                );
+                                            })()}
                                         </td>
+                                        <td className="px-4 py-3">{getStatusBadge(client.status)}</td>
                                         <td className="px-4 py-3">
                                             <button
                                                 onClick={() => onNavigateToClientDetail(client.id)}
