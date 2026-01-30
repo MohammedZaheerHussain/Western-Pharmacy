@@ -5,12 +5,14 @@
 
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { Medicine, CartItem, Bill } from '../types/medicine';
+import { Customer } from '../types/customer';
 import {
     Search, Plus, Minus, Trash2, ShoppingCart, Receipt, History,
     X, AlertCircle, AlertTriangle, FilePlus, CheckCircle
 } from 'lucide-react';
 import { BillReceiptModal } from './BillReceiptModal';
 import { BillHistoryModal } from './BillHistoryModal';
+import { CustomerLookup } from './CustomerLookup';
 import { LOW_STOCK_THRESHOLD } from '../hooks/useBilling';
 
 // ============ INLINE SUB-COMPONENTS ============
@@ -309,6 +311,12 @@ interface BillingPanelProps {
     onBillComplete: () => void;
     onEditBill: (bill: Bill) => void;
     onCancelEdit: () => void;
+    // Customer loyalty
+    selectedCustomer: Customer | null;
+    onCustomerSelect: (customer: Customer | null) => void;
+    pointsToRedeem: number;
+    onPointsRedeem: (points: number) => void;
+    pointsDiscount: number;
 }
 
 export function BillingPanel({
@@ -345,7 +353,13 @@ export function BillingPanel({
     onClearSuccess,
     onBillComplete,
     onEditBill,
-    onCancelEdit
+    onCancelEdit,
+    // Customer loyalty
+    selectedCustomer,
+    onCustomerSelect,
+    pointsToRedeem,
+    onPointsRedeem,
+    pointsDiscount
 }: BillingPanelProps) {
     const [search, setSearch] = useState('');
     const [receiptModal, setReceiptModal] = useState<Bill | null>(null);
@@ -588,6 +602,20 @@ export function BillingPanel({
 
                 {/* Cart Items */}
                 <div className="flex-1 overflow-y-auto p-4 space-y-3">
+                    {/* Customer Lookup for Loyalty */}
+                    {(cart.length > 0 || isEditMode) && (
+                        <div className="mb-4">
+                            <h3 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Customer (Loyalty Points)</h3>
+                            <CustomerLookup
+                                billTotal={subtotal - discountAmount}
+                                onCustomerSelect={onCustomerSelect}
+                                onPointsRedeem={onPointsRedeem}
+                                selectedCustomer={selectedCustomer}
+                                pointsToRedeem={pointsToRedeem}
+                            />
+                        </div>
+                    )}
+
                     {/* Customer Details (Optional) */}
                     {(cart.length > 0 || isEditMode) && (
                         <div className="mb-4 space-y-3">
@@ -670,6 +698,18 @@ export function BillingPanel({
                                 </span>
                             </div>
                         </div>
+
+                        {/* Points Discount (when redeemed) */}
+                        {pointsDiscount > 0 && (
+                            <div className="flex justify-between text-sm">
+                                <span className="text-gray-600 dark:text-gray-400">
+                                    Points Redeemed ({pointsToRedeem} pts)
+                                </span>
+                                <span className="font-medium text-purple-600 dark:text-purple-400">
+                                    -{formatCurrency(pointsDiscount)}
+                                </span>
+                            </div>
+                        )}
 
                         {/* GST (when enabled) */}
                         {gstEnabled && (

@@ -5,6 +5,9 @@ import { useState, useCallback, useMemo } from 'react';
 import { Medicine, CartItem, Bill, BillItem } from '../types/medicine';
 import { createBill, updateBill, getAllBills, exportBillsToCSV } from '../services/storage';
 import { useRole } from '../context/RoleContext';
+import { Customer, pointsToRupees, calculatePointsEarned } from '../types/customer';
+import { awardPoints, redeemPoints } from '../services/customerStorage';
+import { getCurrentBranchId } from '../services/branchStorage';
 
 /** Low stock threshold - matches inventory alerts */
 export const LOW_STOCK_THRESHOLD = 10;
@@ -29,6 +32,13 @@ interface UseBillingReturn {
     setCustomerName: (name: string) => void;
     setCustomerPhone: (phone: string) => void;
     setDoctorName: (name: string) => void;
+
+    // Customer loyalty
+    selectedCustomer: Customer | null;
+    setSelectedCustomer: (customer: Customer | null) => void;
+    pointsToRedeem: number;
+    setPointsToRedeem: (points: number) => void;
+    pointsDiscount: number;
 
     // Edit mode state
     editingBill: Bill | null;
@@ -80,6 +90,10 @@ export function useBilling(): UseBillingReturn {
     const [loading, setLoading] = useState(false);
     const [editingBill, setEditingBill] = useState<Bill | null>(null);
 
+    // Customer loyalty state
+    const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
+    const [pointsToRedeem, setPointsToRedeem] = useState(0);
+
     // Activity logging from role context
     const { logActivity } = useRole();
 
@@ -89,7 +103,8 @@ export function useBilling(): UseBillingReturn {
     // Calculate totals
     const subtotal = useMemo(() => cart.reduce((sum, item) => sum + item.total, 0), [cart]);
     const discountAmount = useMemo(() => (subtotal * discountPercent) / 100, [subtotal, discountPercent]);
-    const grandTotal = useMemo(() => subtotal - discountAmount, [subtotal, discountAmount]);
+    const pointsDiscount = useMemo(() => pointsToRupees(pointsToRedeem), [pointsToRedeem]);
+    const grandTotal = useMemo(() => Math.max(0, subtotal - discountAmount - pointsDiscount), [subtotal, discountAmount, pointsDiscount]);
 
     /**
      * Get post-sale stock for a medicine after current cart sale
@@ -388,6 +403,8 @@ export function useBilling(): UseBillingReturn {
         setCustomerName('');
         setCustomerPhone('');
         setDoctorName('');
+        setSelectedCustomer(null);
+        setPointsToRedeem(0);
         setError(null);
         setEditingBill(null);
     }, []);
@@ -486,6 +503,22 @@ export function useBilling(): UseBillingReturn {
                 bill = await createBill(billItems.filter(i => i.quantity > 0), discountPercent, customerName, customerPhone, doctorName);
                 setSuccessMessage(`Bill ${bill.billNumber} created! Total: ₹${bill.grandTotal.toFixed(2)}`);
                 logActivity('bill_create', 'bill', bill.id, `Created bill ${bill.billNumber} for ₹${bill.grandTotal.toFixed(2)}`);
+
+                // Loyalty: Award points to customer
+                if (selectedCustomer && grandTotal > 0) {
+                    const branchId = getCurrentBranchId() || undefined;
+                    const pointsEarned = calculatePointsEarned(grandTotal);
+
+                    // Redeem points if any
+                    if (pointsToRedeem > 0) {
+                        await redeemPoints(selectedCustomer.id, bill.id, pointsToRedeem, branchId);
+                    }
+
+                    // Award new points
+                    if (pointsEarned > 0) {
+                        await awardPoints(selectedCustomer.id, bill.id, grandTotal, branchId);
+                    }
+                }
             }
 
             // Clear cart after successful billing
@@ -587,6 +620,12 @@ export function useBilling(): UseBillingReturn {
         successMessage,
         clearError,
         clearSuccess,
-        loading
+        loading,
+        // Customer loyalty
+        selectedCustomer,
+        setSelectedCustomer,
+        pointsToRedeem,
+        setPointsToRedeem,
+        pointsDiscount
     };
 }

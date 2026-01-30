@@ -36,6 +36,7 @@ import { Purchases } from './pages/Purchases';
 import { AdvancedReports } from './pages/AdvancedReports';
 import { StaffManagement } from './pages/StaffManagement';
 import { ActivityLogs } from './pages/ActivityLogs';
+import { CustomersPage } from './pages/CustomersPage';
 import { BarcodeScanner } from './components/BarcodeScanner';
 import { ExpiryAlertBanner } from './components/ExpiryAlertBanner';
 import { getCurrentUser, signOut, onAuthStateChange, isAuthEnabled, AuthUser, isSuperAdmin, isEmailVerified } from './services/auth';
@@ -45,7 +46,7 @@ import { Settlement } from './types/user';
 import { Users, ClipboardList, Calculator, Lock } from 'lucide-react';
 import useFeatureAccess, { FeatureGate } from './hooks/useFeatureAccess';
 
-type ViewMode = 'inventory' | 'billing' | 'reports' | 'suppliers' | 'purchases' | 'analytics' | 'staff' | 'activity';
+type ViewMode = 'inventory' | 'billing' | 'reports' | 'suppliers' | 'purchases' | 'analytics' | 'staff' | 'activity' | 'customers';
 type Theme = 'light' | 'dark' | 'system';
 
 /** Get initial theme from localStorage or system preference */
@@ -615,6 +616,24 @@ function App() {
                                                 )}
                                             </button>
                                             <button
+                                                onClick={() => featureAccess.canAccessSuppliers
+                                                    ? setViewMode('customers')
+                                                    : alert('Customers & Loyalty is a Pro feature. Upgrade your plan to access.')}
+                                                className={`w-full flex items-center justify-between gap-2 px-3 py-2 text-sm text-left hover:bg-gray-100 dark:hover:bg-gray-700 
+                                                    ${!featureAccess.canAccessSuppliers ? 'opacity-60' : ''} 
+                                                    ${viewMode === 'customers' ? 'text-purple-600 font-medium' : 'text-gray-700 dark:text-gray-300'}`}
+                                            >
+                                                <span className="flex items-center gap-2">
+                                                    <Users size={14} />
+                                                    Customers
+                                                </span>
+                                                {!featureAccess.canAccessSuppliers && (
+                                                    <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-blue-100 text-blue-700 dark:bg-blue-900/50 dark:text-blue-300">
+                                                        <Lock size={8} className="inline mr-0.5" />Pro
+                                                    </span>
+                                                )}
+                                            </button>
+                                            <button
                                                 onClick={() => featureAccess.canAccessSettlement
                                                     ? setSettlementModal(true)
                                                     : alert('Settlement is a Premium feature. Upgrade your plan to access.')}
@@ -769,6 +788,12 @@ function App() {
                         onBillComplete={handleBillComplete}
                         onEditBill={handleEditBill}
                         onCancelEdit={billing.cancelEdit}
+                        // Customer loyalty
+                        selectedCustomer={billing.selectedCustomer}
+                        onCustomerSelect={billing.setSelectedCustomer}
+                        pointsToRedeem={billing.pointsToRedeem}
+                        onPointsRedeem={billing.setPointsToRedeem}
+                        pointsDiscount={billing.pointsDiscount}
                     />
                 ) : viewMode === 'suppliers' ? (
                     /* Suppliers View */
@@ -822,6 +847,16 @@ function App() {
                         showPreview
                     >
                         <ActivityLogs />
+                    </FeatureGate>
+                ) : viewMode === 'customers' ? (
+                    /* Customers & Loyalty View */
+                    <FeatureGate
+                        hasAccess={featureAccess.canAccessSuppliers}
+                        feature="Customers & Loyalty"
+                        requiredPlan="pro"
+                        showPreview
+                    >
+                        <CustomersPage />
                     </FeatureGate>
                 ) : (
                     /* Reports View */

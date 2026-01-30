@@ -67,6 +67,7 @@ export interface Medicine {
 
     createdAt: string;
     updatedAt: string;
+    branchId?: string;       // Multi-branch: which branch owns this
     auditHistory: AuditEntry[];
 }
 
@@ -165,10 +166,15 @@ export interface Bill {
     customerName?: string; // Optional customer name
     customerPhone?: string; // Optional customer phone
     doctorName?: string; // Optional prescribing doctor name
+    customerId?: string;    // Linked customer for loyalty
+    branchId?: string;      // Multi-branch: which branch
     items: BillItem[];
     subtotal: number;
     discountPercent: number;
     discountAmount: number;
+    pointsEarned?: number;  // Loyalty points earned from this bill
+    pointsRedeemed?: number; // Loyalty points redeemed on this bill
+    pointsDiscount?: number; // Discount amount from redeemed points
     grandTotal: number;
     createdAt: string;
 }

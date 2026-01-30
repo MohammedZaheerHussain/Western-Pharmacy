@@ -17,6 +17,8 @@ import {
 } from 'lucide-react';
 import { useReports, DateRange, ExpiryAlert } from '../hooks/useReports';
 import { PharmacySettings } from '../components/SettingsModal';
+import { BranchSelector } from '../components/BranchSelector';
+import { Branch } from '../types/user';
 
 interface ReportsProps {
     settings: PharmacySettings;
@@ -25,6 +27,7 @@ interface ReportsProps {
 
 export function Reports({ settings, formatCurrency }: ReportsProps) {
     const [dateRange, setDateRange] = useState<DateRange>('today');
+    const [_selectedBranch, setSelectedBranch] = useState<Branch | null>(null);
     const {
         loading,
         salesSummary,
@@ -66,6 +69,12 @@ export function Reports({ settings, formatCurrency }: ReportsProps) {
                             </button>
                         ))}
                     </div>
+
+                    {/* Branch Selector */}
+                    <BranchSelector
+                        onBranchChange={setSelectedBranch}
+                        compact
+                    />
 
                     {/* Refresh */}
                     <button

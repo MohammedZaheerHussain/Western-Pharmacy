@@ -3,6 +3,23 @@
  * Premium feature for role-based access control
  */
 
+// ============ MULTI-BRANCH SUPPORT ============
+
+export interface Branch {
+    id: string;
+    name: string;              // "Main Store", "Downtown Branch"
+    code: string;              // Short code: "MAIN", "DT"
+    address: string;
+    city: string;
+    phone: string;
+    isActive: boolean;
+    isDefault?: boolean;       // Default branch for new items
+    createdAt: string;
+    updatedAt: string;
+}
+
+// ============ USER ROLES ============
+
 export type UserRole = 'owner' | 'manager' | 'pharmacist' | 'cashier';
 
 export interface StaffMember {
