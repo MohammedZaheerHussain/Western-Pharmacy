@@ -186,6 +186,30 @@ export function LoginPage({ onLogin }: LoginPageProps) {
                         Contact your pharmacy admin if you forgot your password
                     </p>
 
+                    {/* Contact Info for New Users */}
+                    <div className="mt-4 p-4 bg-blue-800/40 backdrop-blur-sm rounded-xl border border-blue-400/20">
+                        <p className="text-center text-blue-100 text-sm font-medium mb-2">
+                            New User? Need a License?
+                        </p>
+                        <p className="text-center text-blue-200/90 text-xs">
+                            For subscriptions, licensing, or more details contact us:
+                        </p>
+                        <div className="flex flex-col items-center gap-1 mt-2">
+                            <a
+                                href="tel:+919789399389"
+                                className="text-sm text-white hover:text-blue-200 transition-colors flex items-center gap-1.5"
+                            >
+                                📞 <span className="font-medium">9789399389</span>
+                            </a>
+                            <a
+                                href="mailto:billovamedical@gmail.com"
+                                className="text-sm text-white hover:text-blue-200 transition-colors flex items-center gap-1.5"
+                            >
+                                ✉️ <span className="font-medium">billovamedical@gmail.com</span>
+                            </a>
+                        </div>
+                    </div>
+
                     {/* Powered By */}
                     <p className="text-center text-blue-300/50 text-xs mt-4">
                         Powered by Billova Medical

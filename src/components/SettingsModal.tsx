@@ -1,6 +1,6 @@
 // Settings Modal with GST, Printer, and Shop Details settings
-import { useState, useEffect } from 'react';
-import { X, Settings, Percent, Printer, Store } from 'lucide-react';
+import { useState, useEffect, useRef } from 'react';
+import { X, Settings, Percent, Printer, Store, Download, Upload, LogOut, Database, AlertCircle, CheckCircle } from 'lucide-react';
 
 // Paper size presets with dimensions in mm
 export type PaperSize = 'thermal-58mm' | 'thermal-80mm' | 'a4' | 'a5' | 'letter' | 'custom';
@@ -166,11 +166,27 @@ interface SettingsModalProps {
     settings: PharmacySettings;
     onClose: () => void;
     onSave: (settings: PharmacySettings) => void;
+    // Data management
+    onExportCSV?: () => void;
+    onImportCSV?: (medicines: any[]) => Promise<void>;
+    parseCSV?: (content: string) => {
+        valid: any[];
+        invalid: { row: number; data: Record<string, string>; errors: string[] }[];
+    };
+    onLogout?: () => void;
+    isAuthEnabled?: boolean;
 }
 
-export function SettingsModal({ isOpen, settings, onClose, onSave }: SettingsModalProps) {
+export function SettingsModal({ isOpen, settings, onClose, onSave, onExportCSV, onImportCSV, parseCSV, onLogout, isAuthEnabled }: SettingsModalProps) {
     const [localSettings, setLocalSettings] = useState<PharmacySettings>(settings);
-    const [activeTab, setActiveTab] = useState<'shop' | 'tax' | 'printer'>('shop');
+    const [activeTab, setActiveTab] = useState<'shop' | 'tax' | 'printer' | 'data'>('shop');
+
+    // Import state
+    const fileInputRef = useRef<HTMLInputElement>(null);
+    const [importPreview, setImportPreview] = useState<{ valid: any[]; invalid: any[] } | null>(null);
+    const [importing, setImporting] = useState(false);
+    const [importError, setImportError] = useState<string | null>(null);
+    const [importSuccess, setImportSuccess] = useState(false);
 
     // Sync with external settings when modal opens
     useEffect(() => {
@@ -260,6 +276,16 @@ export function SettingsModal({ isOpen, settings, onClose, onSave }: SettingsMod
                     >
                         <Printer size={16} className="inline mr-2" />
                         Printer
+                    </button>
+                    <button
+                        onClick={() => setActiveTab('data')}
+                        className={`flex-1 px-4 py-3 text-sm font-medium transition-colors ${activeTab === 'data'
+                            ? 'text-medical-blue border-b-2 border-medical-blue bg-blue-50/50 dark:bg-blue-900/20'
+                            : 'text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200'
+                            }`}
+                    >
+                        <Database size={16} className="inline mr-2" />
+                        Data
                     </button>
                 </div>
 
@@ -696,6 +722,214 @@ export function SettingsModal({ isOpen, settings, onClose, onSave }: SettingsMod
                                     <li>Standard inkjet/laser (A4, A5, Letter)</li>
                                     <li>Any browser-supported printer</li>
                                 </ul>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Data Tab - Import/Export & Logout */}
+                    {activeTab === 'data' && (
+                        <div className="space-y-6">
+                            {/* Import/Export Section */}
+                            <div>
+                                <h3 className="text-sm font-medium text-gray-700 dark:text-gray-300 uppercase tracking-wide mb-3">
+                                    Data Management
+                                </h3>
+                                <p className="text-xs text-gray-500 dark:text-gray-400 mb-4">
+                                    Import or export your medicine inventory data as CSV files.
+                                </p>
+
+                                <div className="space-y-3">
+                                    {/* Export Button */}
+                                    {onExportCSV && (
+                                        <button
+                                            onClick={onExportCSV}
+                                            className="w-full flex items-center justify-between p-4 bg-green-50 dark:bg-green-900/20 
+                                                     hover:bg-green-100 dark:hover:bg-green-900/30 rounded-lg transition-colors
+                                                     border border-green-200 dark:border-green-800"
+                                        >
+                                            <div className="flex items-center gap-3">
+                                                <div className="p-2 bg-green-100 dark:bg-green-900/50 rounded-lg">
+                                                    <Download className="text-green-600 dark:text-green-400" size={20} />
+                                                </div>
+                                                <div className="text-left">
+                                                    <p className="font-medium text-green-800 dark:text-green-300">Export Inventory</p>
+                                                    <p className="text-xs text-green-600 dark:text-green-400">
+                                                        Download all medicines as CSV file
+                                                    </p>
+                                                </div>
+                                            </div>
+                                            <Download className="text-green-600 dark:text-green-400" size={18} />
+                                        </button>
+                                    )}
+
+                                    {/* Import Section */}
+                                    {parseCSV && onImportCSV && (
+                                        <div>
+                                            <input
+                                                type="file"
+                                                ref={fileInputRef}
+                                                accept=".csv"
+                                                onChange={(e) => {
+                                                    const file = e.target.files?.[0];
+                                                    if (!file) return;
+                                                    setImportError(null);
+                                                    setImportSuccess(false);
+                                                    const reader = new FileReader();
+                                                    reader.onload = (ev) => {
+                                                        const content = ev.target?.result as string;
+                                                        try {
+                                                            const result = parseCSV(content);
+                                                            setImportPreview(result);
+                                                        } catch (err) {
+                                                            setImportError(err instanceof Error ? err.message : 'Failed to parse CSV');
+                                                        }
+                                                    };
+                                                    reader.readAsText(file);
+                                                }}
+                                                className="hidden"
+                                            />
+
+                                            {!importPreview ? (
+                                                <button
+                                                    onClick={() => fileInputRef.current?.click()}
+                                                    className="w-full flex items-center justify-between p-4 bg-blue-50 dark:bg-blue-900/20 
+                                                             hover:bg-blue-100 dark:hover:bg-blue-900/30 rounded-lg transition-colors
+                                                             border border-blue-200 dark:border-blue-800"
+                                                >
+                                                    <div className="flex items-center gap-3">
+                                                        <div className="p-2 bg-blue-100 dark:bg-blue-900/50 rounded-lg">
+                                                            <Upload className="text-blue-600 dark:text-blue-400" size={20} />
+                                                        </div>
+                                                        <div className="text-left">
+                                                            <p className="font-medium text-blue-800 dark:text-blue-300">Import Inventory</p>
+                                                            <p className="text-xs text-blue-600 dark:text-blue-400">
+                                                                Upload CSV file to add medicines
+                                                            </p>
+                                                        </div>
+                                                    </div>
+                                                    <Upload className="text-blue-600 dark:text-blue-400" size={18} />
+                                                </button>
+                                            ) : (
+                                                <div className="p-4 bg-gray-50 dark:bg-gray-700/50 rounded-lg border border-gray-200 dark:border-gray-600">
+                                                    <div className="flex items-center justify-between mb-3">
+                                                        <h4 className="font-medium text-gray-900 dark:text-gray-100">Import Preview</h4>
+                                                        <button
+                                                            onClick={() => {
+                                                                setImportPreview(null);
+                                                                setImportError(null);
+                                                                if (fileInputRef.current) fileInputRef.current.value = '';
+                                                            }}
+                                                            className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+                                                        >
+                                                            <X size={18} />
+                                                        </button>
+                                                    </div>
+                                                    <div className="flex items-center gap-4 mb-3">
+                                                        <span className="flex items-center gap-1 text-sm text-green-600 dark:text-green-400">
+                                                            <CheckCircle size={14} /> {importPreview.valid.length} valid
+                                                        </span>
+                                                        {importPreview.invalid.length > 0 && (
+                                                            <span className="flex items-center gap-1 text-sm text-red-600 dark:text-red-400">
+                                                                <AlertCircle size={14} /> {importPreview.invalid.length} errors
+                                                            </span>
+                                                        )}
+                                                    </div>
+                                                    <div className="flex gap-2">
+                                                        <button
+                                                            onClick={async () => {
+                                                                if (importPreview.valid.length === 0) return;
+                                                                setImporting(true);
+                                                                try {
+                                                                    await onImportCSV(importPreview.valid);
+                                                                    setImportSuccess(true);
+                                                                    setImportPreview(null);
+                                                                    if (fileInputRef.current) fileInputRef.current.value = '';
+                                                                } catch (err) {
+                                                                    setImportError(err instanceof Error ? err.message : 'Import failed');
+                                                                } finally {
+                                                                    setImporting(false);
+                                                                }
+                                                            }}
+                                                            disabled={importing || importPreview.valid.length === 0}
+                                                            className="flex-1 py-2 px-4 bg-blue-600 text-white rounded-lg hover:bg-blue-700
+                                                                     disabled:opacity-50 disabled:cursor-not-allowed font-medium text-sm"
+                                                        >
+                                                            {importing ? 'Importing...' : `Import ${importPreview.valid.length} Items`}
+                                                        </button>
+                                                        <button
+                                                            onClick={() => {
+                                                                setImportPreview(null);
+                                                                if (fileInputRef.current) fileInputRef.current.value = '';
+                                                            }}
+                                                            className="py-2 px-4 bg-gray-200 dark:bg-gray-600 text-gray-700 dark:text-gray-300
+                                                                     rounded-lg hover:bg-gray-300 dark:hover:bg-gray-500 text-sm"
+                                                        >
+                                                            Cancel
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                            )}
+
+                                            {importError && (
+                                                <div className="mt-3 p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 
+                                                              rounded-lg flex items-center gap-2 text-red-700 dark:text-red-300 text-sm">
+                                                    <AlertCircle size={16} />
+                                                    {importError}
+                                                </div>
+                                            )}
+
+                                            {importSuccess && (
+                                                <div className="mt-3 p-3 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 
+                                                              rounded-lg flex items-center gap-2 text-green-700 dark:text-green-300 text-sm">
+                                                    <CheckCircle size={16} />
+                                                    Medicines imported successfully!
+                                                </div>
+                                            )}
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+
+                            {/* Logout Section */}
+                            {isAuthEnabled && onLogout && (
+                                <div className="pt-4 border-t border-gray-200 dark:border-gray-700">
+                                    <h3 className="text-sm font-medium text-gray-700 dark:text-gray-300 uppercase tracking-wide mb-3">
+                                        Account
+                                    </h3>
+                                    <button
+                                        onClick={() => {
+                                            onLogout();
+                                            onClose();
+                                        }}
+                                        className="w-full flex items-center justify-between p-4 bg-red-50 dark:bg-red-900/20 
+                                                 hover:bg-red-100 dark:hover:bg-red-900/30 rounded-lg transition-colors
+                                                 border border-red-200 dark:border-red-800"
+                                    >
+                                        <div className="flex items-center gap-3">
+                                            <div className="p-2 bg-red-100 dark:bg-red-900/50 rounded-lg">
+                                                <LogOut className="text-red-600 dark:text-red-400" size={20} />
+                                            </div>
+                                            <div className="text-left">
+                                                <p className="font-medium text-red-800 dark:text-red-300">Logout</p>
+                                                <p className="text-xs text-red-600 dark:text-red-400">
+                                                    Sign out of your account
+                                                </p>
+                                            </div>
+                                        </div>
+                                        <LogOut className="text-red-600 dark:text-red-400" size={18} />
+                                    </button>
+                                </div>
+                            )}
+
+                            {/* Contact Support */}
+                            <div className="p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg text-sm text-blue-700 dark:text-blue-300">
+                                <p className="font-medium mb-1">📧 Need Help?</p>
+                                <p className="text-xs">
+                                    Contact us at <a href="mailto:billovamedical@gmail.com" className="underline font-medium">billovamedical@gmail.com</a>
+                                </p>
+                                <p className="text-xs text-blue-600 dark:text-blue-400 mt-1">
+                                    Queries resolved in 2-3 business days
+                                </p>
                             </div>
                         </div>
                     )}

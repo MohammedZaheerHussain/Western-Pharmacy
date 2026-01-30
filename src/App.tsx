@@ -16,7 +16,6 @@ import {
     MedicineModal,
     DeleteConfirmModal,
     BulkActionsBar,
-    ImportExportBar,
     LocationModal,
     BillingPanel,
     SettingsModal,
@@ -30,7 +29,7 @@ import { AdminApp } from './pages/AdminApp';
 import { syncService } from './services/syncService';
 import { SyncStatusIndicator } from './components/SyncStatusIndicator';
 import { InstallButton, InstallSuccessToast } from './components/InstallButton';
-import { Plus, Package, Receipt, Sun, Moon, Settings, HardDrive, LogOut, BarChart3, Truck, ShoppingCart, TrendingUp, ScanLine } from 'lucide-react';
+import { Plus, Package, Receipt, Sun, Moon, Settings, HardDrive, BarChart3, Truck, ShoppingCart, TrendingUp, ScanLine, Mail } from 'lucide-react';
 import { Reports } from './pages/Reports';
 import { Suppliers } from './pages/Suppliers';
 import { Purchases } from './pages/Purchases';
@@ -43,7 +42,8 @@ import { getCurrentUser, signOut, onAuthStateChange, isAuthEnabled, AuthUser, is
 import { EmailVerificationGate } from './components/EmailVerificationGate';
 import { SettlementModal } from './components/SettlementModal';
 import { Settlement } from './types/user';
-import { Users, ClipboardList, Calculator } from 'lucide-react';
+import { Users, ClipboardList, Calculator, Lock } from 'lucide-react';
+import useFeatureAccess, { FeatureGate } from './hooks/useFeatureAccess';
 
 type ViewMode = 'inventory' | 'billing' | 'reports' | 'suppliers' | 'purchases' | 'analytics' | 'staff' | 'activity';
 type Theme = 'light' | 'dark' | 'system';
@@ -127,6 +127,9 @@ function App() {
     const [settings, setSettings] = useState<PharmacySettings>(loadSettings);
     const [barcodeScannerOpen, setBarcodeScannerOpen] = useState(false);
     const [settlementModal, setSettlementModal] = useState(false);
+
+    // Feature access control based on plan
+    const featureAccess = useFeatureAccess(settings);
 
     // Auth state
     const [user, setUser] = useState<AuthUser | null>(null);
@@ -422,18 +425,29 @@ function App() {
                                 <Settings size={20} />
                             </button>
 
-                            {/* Logout Button - only show if auth enabled */}
-                            {isAuthEnabled() && user && (
+                            {/* Feedback/Contact Button */}
+                            <div className="relative group">
                                 <button
-                                    onClick={handleLogout}
-                                    className="p-2 text-gray-600 dark:text-gray-400 hover:bg-red-100 hover:text-red-600
-                                             dark:hover:bg-red-900/30 dark:hover:text-red-400 rounded-lg transition-colors"
-                                    title={`Logout (${user.email})`}
-                                    aria-label="Logout"
+                                    onClick={() => window.location.href = 'mailto:billovamedical@gmail.com?subject=Billova Medical Feedback&body=Hi Billova Team,%0D%0A%0D%0AI would like to share:%0D%0A%0D%0AType: [Feedback / Bug Report / Feature Idea]%0D%0A%0D%0ADetails:%0D%0A%0D%0A'}
+                                    className="p-2 text-gray-600 dark:text-gray-400 hover:bg-blue-100 hover:text-blue-600
+                                             dark:hover:bg-blue-900/30 dark:hover:text-blue-400 rounded-lg transition-colors"
+                                    title="Send Feedback"
+                                    aria-label="Send Feedback"
                                 >
-                                    <LogOut size={20} />
+                                    <Mail size={20} />
                                 </button>
-                            )}
+                                {/* Tooltip on hover */}
+                                <div className="absolute top-full right-0 mt-2 w-64 bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 p-3 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-50">
+                                    <p className="text-sm font-medium text-gray-900 dark:text-gray-100 mb-1">Contact Us</p>
+                                    <p className="text-xs text-gray-600 dark:text-gray-400 mb-2">
+                                        Share feedback, report issues, or suggest ideas!
+                                    </p>
+                                    <p className="text-xs text-blue-600 dark:text-blue-400 font-medium">billovamedical@gmail.com</p>
+                                    <p className="text-[10px] text-gray-500 dark:text-gray-500 mt-1">
+                                        📬 Queries resolved in 2-3 business days
+                                    </p>
+                                </div>
+                            </div>
 
                             {/* Theme Toggle */}
                             <button
@@ -453,114 +467,201 @@ function App() {
                             {/* PWA Install Button */}
                             <InstallButton onInstallSuccess={() => setShowInstallToast(true)} />
 
-                            {/* View Toggle */}
-                            <div className="flex bg-gray-100 dark:bg-gray-700 rounded-lg p-1">
-                                <button
-                                    onClick={() => setViewMode('inventory')}
-                                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium transition-colors
-                                        ${viewMode === 'inventory'
-                                            ? 'bg-white dark:bg-gray-600 text-gray-900 dark:text-gray-100 shadow-sm'
-                                            : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200'}`}
-                                >
-                                    <Package size={16} />
-                                    <span className="hidden sm:inline">Inventory</span>
-                                </button>
-                                <button
-                                    onClick={() => setViewMode('billing')}
-                                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium transition-colors
-                                        ${viewMode === 'billing'
-                                            ? 'bg-white dark:bg-gray-600 text-gray-900 dark:text-gray-100 shadow-sm'
-                                            : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200'}`}
-                                >
-                                    <Receipt size={16} />
-                                    <span className="hidden sm:inline">Billing</span>
-                                </button>
-                                <button
-                                    onClick={() => setViewMode('reports')}
-                                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium transition-colors
-                                        ${viewMode === 'reports'
-                                            ? 'bg-white dark:bg-gray-600 text-gray-900 dark:text-gray-100 shadow-sm'
-                                            : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200'}`}
-                                >
-                                    <BarChart3 size={16} />
-                                    <span className="hidden sm:inline">Reports</span>
-                                </button>
-
-                                {/* Pro Features Dropdown */}
-                                <div className="relative group">
+                            {/* Navigation Bar - Reorganized Layout */}
+                            <div className="flex items-center gap-2">
+                                {/* LEFT SIDE: Reports, Pro, Premium */}
+                                <div className="flex bg-gray-100 dark:bg-gray-700 rounded-lg p-1">
                                     <button
+                                        onClick={() => setViewMode('reports')}
                                         className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium transition-colors
-                                            ${['suppliers', 'purchases', 'analytics'].includes(viewMode)
-                                                ? 'bg-gradient-to-r from-amber-500 to-orange-500 text-white shadow-sm'
+                                            ${viewMode === 'reports'
+                                                ? 'bg-white dark:bg-gray-600 text-gray-900 dark:text-gray-100 shadow-sm'
                                                 : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200'}`}
                                     >
-                                        <TrendingUp size={16} />
-                                        <span className="hidden sm:inline">Pro</span>
+                                        <BarChart3 size={16} />
+                                        <span className="hidden sm:inline">Reports</span>
                                     </button>
-                                    <div className="absolute top-full left-0 mt-1 w-40 bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-50">
+
+                                    {/* Pro Features Dropdown */}
+                                    <div className="relative group">
                                         <button
-                                            onClick={() => setViewMode('suppliers')}
-                                            className={`w-full flex items-center gap-2 px-3 py-2 text-sm text-left hover:bg-gray-100 dark:hover:bg-gray-700 first:rounded-t-lg ${viewMode === 'suppliers' ? 'text-medical-blue font-medium' : 'text-gray-700 dark:text-gray-300'}`}
+                                            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium transition-colors
+                                                bg-gradient-to-r from-amber-500 to-orange-500 text-white shadow-sm
+                                                ${['suppliers', 'purchases', 'analytics'].includes(viewMode) ? 'ring-2 ring-amber-300' : ''}`}
                                         >
-                                            <Truck size={14} />
-                                            Suppliers
+                                            <TrendingUp size={16} />
+                                            <span className="hidden sm:inline">Pro</span>
                                         </button>
-                                        <button
-                                            onClick={() => setViewMode('purchases')}
-                                            className={`w-full flex items-center gap-2 px-3 py-2 text-sm text-left hover:bg-gray-100 dark:hover:bg-gray-700 ${viewMode === 'purchases' ? 'text-medical-blue font-medium' : 'text-gray-700 dark:text-gray-300'}`}
-                                        >
-                                            <ShoppingCart size={14} />
-                                            Purchases
-                                        </button>
-                                        <button
-                                            onClick={() => setViewMode('analytics')}
-                                            className={`w-full flex items-center gap-2 px-3 py-2 text-sm text-left hover:bg-gray-100 dark:hover:bg-gray-700 ${viewMode === 'analytics' ? 'text-medical-blue font-medium' : 'text-gray-700 dark:text-gray-300'}`}
-                                        >
-                                            <TrendingUp size={14} />
-                                            Analytics
-                                        </button>
-                                        <button
-                                            onClick={() => setBarcodeScannerOpen(true)}
-                                            className="w-full flex items-center gap-2 px-3 py-2 text-sm text-left hover:bg-gray-100 dark:hover:bg-gray-700 last:rounded-b-lg text-gray-700 dark:text-gray-300"
-                                        >
-                                            <ScanLine size={14} />
-                                            Scan Barcode
-                                        </button>
-                                        {/* Premium Features Divider */}
-                                        <div className="border-t border-gray-200 dark:border-gray-600 my-1" />
-                                        <div className="px-3 py-1 text-xs font-medium text-gray-400 dark:text-gray-500">Premium</div>
-                                        <button
-                                            onClick={() => setViewMode('staff')}
-                                            className={`w-full flex items-center gap-2 px-3 py-2 text-sm text-left hover:bg-gray-100 dark:hover:bg-gray-700 ${viewMode === 'staff' ? 'text-medical-blue font-medium' : 'text-gray-700 dark:text-gray-300'}`}
-                                        >
-                                            <Users size={14} />
-                                            Staff
-                                        </button>
-                                        <button
-                                            onClick={() => setViewMode('activity')}
-                                            className={`w-full flex items-center gap-2 px-3 py-2 text-sm text-left hover:bg-gray-100 dark:hover:bg-gray-700 ${viewMode === 'activity' ? 'text-medical-blue font-medium' : 'text-gray-700 dark:text-gray-300'}`}
-                                        >
-                                            <ClipboardList size={14} />
-                                            Activity Logs
-                                        </button>
-                                        <button
-                                            onClick={() => setSettlementModal(true)}
-                                            className="w-full flex items-center gap-2 px-3 py-2 text-sm text-left hover:bg-gray-100 dark:hover:bg-gray-700 last:rounded-b-lg text-gray-700 dark:text-gray-300"
-                                        >
-                                            <Calculator size={14} />
-                                            Settlement
-                                        </button>
+                                        <div className="absolute top-full left-0 mt-1 w-44 bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-50">
+                                            <button
+                                                onClick={() => featureAccess.canAccessSuppliers
+                                                    ? setViewMode('suppliers')
+                                                    : alert('Suppliers is a Pro feature. Upgrade your plan to access.')}
+                                                className={`w-full flex items-center justify-between gap-2 px-3 py-2 text-sm text-left hover:bg-gray-100 dark:hover:bg-gray-700 first:rounded-t-lg
+                                                    ${!featureAccess.canAccessSuppliers ? 'opacity-60' : ''} 
+                                                    ${viewMode === 'suppliers' ? 'text-medical-blue font-medium' : 'text-gray-700 dark:text-gray-300'}`}
+                                            >
+                                                <span className="flex items-center gap-2">
+                                                    <Truck size={14} />
+                                                    Suppliers
+                                                </span>
+                                                {!featureAccess.canAccessSuppliers && (
+                                                    <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-amber-100 text-amber-700 dark:bg-amber-900/50 dark:text-amber-300">
+                                                        <Lock size={8} className="inline mr-0.5" />Pro
+                                                    </span>
+                                                )}
+                                            </button>
+                                            <button
+                                                onClick={() => featureAccess.canAccessPurchases
+                                                    ? setViewMode('purchases')
+                                                    : alert('Purchases is a Pro feature. Upgrade your plan to access.')}
+                                                className={`w-full flex items-center justify-between gap-2 px-3 py-2 text-sm text-left hover:bg-gray-100 dark:hover:bg-gray-700 
+                                                    ${!featureAccess.canAccessPurchases ? 'opacity-60' : ''} 
+                                                    ${viewMode === 'purchases' ? 'text-medical-blue font-medium' : 'text-gray-700 dark:text-gray-300'}`}
+                                            >
+                                                <span className="flex items-center gap-2">
+                                                    <ShoppingCart size={14} />
+                                                    Purchases
+                                                </span>
+                                                {!featureAccess.canAccessPurchases && (
+                                                    <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-amber-100 text-amber-700 dark:bg-amber-900/50 dark:text-amber-300">
+                                                        <Lock size={8} className="inline mr-0.5" />Pro
+                                                    </span>
+                                                )}
+                                            </button>
+                                            <button
+                                                onClick={() => featureAccess.canAccessAdvancedReports
+                                                    ? setViewMode('analytics')
+                                                    : alert('Analytics is a Pro feature. Upgrade your plan to access.')}
+                                                className={`w-full flex items-center justify-between gap-2 px-3 py-2 text-sm text-left hover:bg-gray-100 dark:hover:bg-gray-700 
+                                                    ${!featureAccess.canAccessAdvancedReports ? 'opacity-60' : ''} 
+                                                    ${viewMode === 'analytics' ? 'text-medical-blue font-medium' : 'text-gray-700 dark:text-gray-300'}`}
+                                            >
+                                                <span className="flex items-center gap-2">
+                                                    <TrendingUp size={14} />
+                                                    Analytics
+                                                </span>
+                                                {!featureAccess.canAccessAdvancedReports && (
+                                                    <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-amber-100 text-amber-700 dark:bg-amber-900/50 dark:text-amber-300">
+                                                        <Lock size={8} className="inline mr-0.5" />Pro
+                                                    </span>
+                                                )}
+                                            </button>
+                                            <button
+                                                onClick={() => featureAccess.canAccessBarcode
+                                                    ? setBarcodeScannerOpen(true)
+                                                    : alert('Barcode Scanner is a Pro feature. Upgrade your plan to access.')}
+                                                className={`w-full flex items-center justify-between gap-2 px-3 py-2 text-sm text-left hover:bg-gray-100 dark:hover:bg-gray-700 last:rounded-b-lg
+                                                    ${!featureAccess.canAccessBarcode ? 'opacity-60' : ''} text-gray-700 dark:text-gray-300`}
+                                            >
+                                                <span className="flex items-center gap-2">
+                                                    <ScanLine size={14} />
+                                                    Scan Barcode
+                                                </span>
+                                                {!featureAccess.canAccessBarcode && (
+                                                    <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-amber-100 text-amber-700 dark:bg-amber-900/50 dark:text-amber-300">
+                                                        <Lock size={8} className="inline mr-0.5" />Pro
+                                                    </span>
+                                                )}
+                                            </button>
+                                        </div>
                                     </div>
+
+                                    {/* Premium Features Dropdown - Separate Purple Button */}
+                                    <div className="relative group">
+                                        <button
+                                            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium transition-colors
+                                                bg-gradient-to-r from-purple-500 to-violet-600 text-white shadow-sm
+                                                ${['staff', 'activity'].includes(viewMode) ? 'ring-2 ring-purple-300' : ''}`}
+                                        >
+                                            <Users size={16} />
+                                            <span className="hidden sm:inline">Premium</span>
+                                        </button>
+                                        <div className="absolute top-full left-0 mt-1 w-44 bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-50">
+                                            <button
+                                                onClick={() => featureAccess.canAccessStaffManagement
+                                                    ? setViewMode('staff')
+                                                    : alert('Staff Management is a Premium feature. Upgrade your plan to access.')}
+                                                className={`w-full flex items-center justify-between gap-2 px-3 py-2 text-sm text-left hover:bg-gray-100 dark:hover:bg-gray-700 first:rounded-t-lg
+                                                    ${!featureAccess.canAccessStaffManagement ? 'opacity-60' : ''} 
+                                                    ${viewMode === 'staff' ? 'text-purple-600 font-medium' : 'text-gray-700 dark:text-gray-300'}`}
+                                            >
+                                                <span className="flex items-center gap-2">
+                                                    <Users size={14} />
+                                                    Staff
+                                                </span>
+                                                {!featureAccess.canAccessStaffManagement && (
+                                                    <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-purple-100 text-purple-700 dark:bg-purple-900/50 dark:text-purple-300">
+                                                        <Lock size={8} className="inline mr-0.5" />Premium
+                                                    </span>
+                                                )}
+                                            </button>
+                                            <button
+                                                onClick={() => featureAccess.canAccessActivityLogs
+                                                    ? setViewMode('activity')
+                                                    : alert('Activity Logs is a Premium feature. Upgrade your plan to access.')}
+                                                className={`w-full flex items-center justify-between gap-2 px-3 py-2 text-sm text-left hover:bg-gray-100 dark:hover:bg-gray-700 
+                                                    ${!featureAccess.canAccessActivityLogs ? 'opacity-60' : ''} 
+                                                    ${viewMode === 'activity' ? 'text-purple-600 font-medium' : 'text-gray-700 dark:text-gray-300'}`}
+                                            >
+                                                <span className="flex items-center gap-2">
+                                                    <ClipboardList size={14} />
+                                                    Activity Logs
+                                                </span>
+                                                {!featureAccess.canAccessActivityLogs && (
+                                                    <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-purple-100 text-purple-700 dark:bg-purple-900/50 dark:text-purple-300">
+                                                        <Lock size={8} className="inline mr-0.5" />Premium
+                                                    </span>
+                                                )}
+                                            </button>
+                                            <button
+                                                onClick={() => featureAccess.canAccessSettlement
+                                                    ? setSettlementModal(true)
+                                                    : alert('Settlement is a Premium feature. Upgrade your plan to access.')}
+                                                className={`w-full flex items-center justify-between gap-2 px-3 py-2 text-sm text-left hover:bg-gray-100 dark:hover:bg-gray-700 last:rounded-b-lg
+                                                    ${!featureAccess.canAccessSettlement ? 'opacity-60' : ''} text-gray-700 dark:text-gray-300`}
+                                            >
+                                                <span className="flex items-center gap-2">
+                                                    <Calculator size={14} />
+                                                    Settlement
+                                                </span>
+                                                {!featureAccess.canAccessSettlement && (
+                                                    <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-purple-100 text-purple-700 dark:bg-purple-900/50 dark:text-purple-300">
+                                                        <Lock size={8} className="inline mr-0.5" />Premium
+                                                    </span>
+                                                )}
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                {/* RIGHT SIDE: Inventory & Billing - Highlighted Primary Actions */}
+                                <div className="flex bg-gradient-to-r from-medical-blue to-blue-600 rounded-lg p-1 shadow-sm">
+                                    <button
+                                        onClick={() => setViewMode('inventory')}
+                                        className={`flex items-center gap-1.5 px-4 py-1.5 rounded-md text-sm font-medium transition-colors
+                                            ${viewMode === 'inventory'
+                                                ? 'bg-white text-blue-600 shadow-sm'
+                                                : 'text-white/90 hover:text-white hover:bg-white/10'}`}
+                                    >
+                                        <Package size={16} />
+                                        <span className="hidden sm:inline">Inventory</span>
+                                    </button>
+                                    <button
+                                        onClick={() => setViewMode('billing')}
+                                        className={`flex items-center gap-1.5 px-4 py-1.5 rounded-md text-sm font-medium transition-colors
+                                            ${viewMode === 'billing'
+                                                ? 'bg-white text-blue-600 shadow-sm'
+                                                : 'text-white/90 hover:text-white hover:bg-white/10'}`}
+                                    >
+                                        <Receipt size={16} />
+                                        <span className="hidden sm:inline">Billing</span>
+                                    </button>
                                 </div>
                             </div>
 
                             {viewMode === 'inventory' && (
                                 <>
-                                    <ImportExportBar
-                                        onExport={exportCSV}
-                                        onImport={importMedicines}
-                                        parseCSV={parseCSV}
-                                    />
                                     <button
                                         onClick={() => setMedicineModal({ open: true, medicine: null })}
                                         className="flex items-center gap-2 px-4 py-2 bg-medical-blue text-white 
@@ -583,6 +684,11 @@ function App() {
                     )}
                 </div>
             </header>
+
+            {/* Expiry Alert Banner - Notification Bar Area Below Header */}
+            {!['reports', 'analytics'].includes(viewMode) && (
+                <ExpiryAlertBanner onViewReport={() => setViewMode('reports')} />
+            )}
 
             {/* Main Content */}
             <main className="max-w-7xl mx-auto px-4 sm:px-6 py-6 space-y-4">
@@ -666,22 +772,57 @@ function App() {
                     />
                 ) : viewMode === 'suppliers' ? (
                     /* Suppliers View */
-                    <Suppliers formatCurrency={formatCurrency} />
+                    <FeatureGate
+                        hasAccess={featureAccess.canAccessSuppliers}
+                        feature="Suppliers"
+                        requiredPlan="pro"
+                        showPreview
+                    >
+                        <Suppliers formatCurrency={formatCurrency} />
+                    </FeatureGate>
                 ) : viewMode === 'purchases' ? (
                     /* Purchases View */
-                    <Purchases
-                        formatCurrency={formatCurrency}
-                        onNavigateToSuppliers={() => setViewMode('suppliers')}
-                    />
+                    <FeatureGate
+                        hasAccess={featureAccess.canAccessPurchases}
+                        feature="Purchases"
+                        requiredPlan="pro"
+                        showPreview
+                    >
+                        <Purchases
+                            formatCurrency={formatCurrency}
+                            onNavigateToSuppliers={() => setViewMode('suppliers')}
+                        />
+                    </FeatureGate>
                 ) : viewMode === 'analytics' ? (
                     /* Advanced Analytics View */
-                    <AdvancedReports settings={settings} formatCurrency={formatCurrency} />
+                    <FeatureGate
+                        hasAccess={featureAccess.canAccessAdvancedReports}
+                        feature="Advanced Analytics"
+                        requiredPlan="pro"
+                        showPreview
+                    >
+                        <AdvancedReports settings={settings} formatCurrency={formatCurrency} />
+                    </FeatureGate>
                 ) : viewMode === 'staff' ? (
                     /* Staff Management View */
-                    <StaffManagement />
+                    <FeatureGate
+                        hasAccess={featureAccess.canAccessStaffManagement}
+                        feature="Staff Management"
+                        requiredPlan="premium"
+                        showPreview
+                    >
+                        <StaffManagement />
+                    </FeatureGate>
                 ) : viewMode === 'activity' ? (
                     /* Activity Logs View */
-                    <ActivityLogs />
+                    <FeatureGate
+                        hasAccess={featureAccess.canAccessActivityLogs}
+                        feature="Activity Logs"
+                        requiredPlan="premium"
+                        showPreview
+                    >
+                        <ActivityLogs />
+                    </FeatureGate>
                 ) : (
                     /* Reports View */
                     <Reports
@@ -690,11 +831,6 @@ function App() {
                     />
                 )}
             </main>
-
-            {/* Expiry Alert Banner - shown above main content */}
-            {!['reports', 'analytics'].includes(viewMode) && (
-                <ExpiryAlertBanner onViewReport={() => setViewMode('reports')} />
-            )}
 
             {/* Barcode Scanner Modal */}
             <BarcodeScanner
@@ -755,6 +891,11 @@ function App() {
                 settings={settings}
                 onClose={() => setSettingsModal(false)}
                 onSave={setSettings}
+                onExportCSV={exportCSV}
+                onImportCSV={importMedicines}
+                parseCSV={parseCSV}
+                onLogout={handleLogout}
+                isAuthEnabled={isAuthEnabled()}
             />
 
             {/* Backup Modal */}

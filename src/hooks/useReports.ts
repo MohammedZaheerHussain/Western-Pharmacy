@@ -202,7 +202,8 @@ export function useReports(dateRange: DateRange = 'today', customStart?: Date, c
         let expiringCount = 0;
 
         medicines.forEach(med => {
-            totalValue += med.quantity * med.unitPrice;
+            // unitPrice is per strip, quantity is in tablets, so divide by tabletsPerStrip
+            totalValue += (med.quantity * med.unitPrice) / (med.tabletsPerStrip || 1);
 
             if (med.quantity === 0) {
                 outOfStockCount++;
