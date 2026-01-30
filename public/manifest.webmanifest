@@ -1,0 +1,26 @@
+{
+    "name": "Billova Medical Billing",
+    "short_name": "Billova",
+    "description": "Pharmacy Inventory & Billing System",
+    "start_url": "/",
+    "display": "standalone",
+    "background_color": "#ffffff",
+    "theme_color": "#7C3AED",
+    "lang": "en",
+    "scope": "/",
+    "orientation": "any",
+    "icons": [
+        {
+            "src": "/billova-logo.png",
+            "sizes": "192x192",
+            "type": "image/png",
+            "purpose": "any"
+        },
+        {
+            "src": "/billova-logo.png",
+            "sizes": "512x512",
+            "type": "image/png",
+            "purpose": "any maskable"
+        }
+    ]
+}
