@@ -92,18 +92,19 @@ export async function createPharmacyClient(input: ClientInput, created_by: strin
 
     let userId: string | undefined;
 
-    // Check if this is a demo account
-    const isDemoAccount = input.plan_id === 'demo_3day';
+    // Check if this is a demo account (any plan starting with "demo_")
+    const isDemoAccount = input.plan_id.startsWith('demo_');
 
     // Step 1: Create auth user for client login
-    // Use admin API when available (skips email verification)
-    // This is preferred for admin-created accounts as clients get credentials directly
+    // For demo accounts: skip email verification (immediate login)
+    // For real accounts: require email verification before login
     if (supabaseAdmin) {
-        // Use admin API to create user WITHOUT email verification
+        // Use admin API to create user
+        // email_confirm: true = skip verification, false = require verification
         const { data: authData, error: authError } = await supabaseAdmin.auth.admin.createUser({
             email: input.email,
             password: password,
-            email_confirm: true, // Skip email verification - admin creates account directly
+            email_confirm: isDemoAccount, // Only auto-confirm for demo accounts
             user_metadata: {
                 role: 'client',
                 pharmacy_name: input.pharmacy_name,

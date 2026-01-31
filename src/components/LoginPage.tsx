@@ -33,7 +33,15 @@ export function LoginPage({ onLogin }: LoginPageProps) {
             await signIn(email, password);
             onLogin();
         } catch (err) {
-            setError(err instanceof Error ? err.message : 'Login failed');
+            const errorMessage = err instanceof Error ? err.message : 'Login failed';
+
+            // Check for email not confirmed error
+            if (errorMessage.toLowerCase().includes('email not confirmed') ||
+                errorMessage.toLowerCase().includes('email_not_confirmed')) {
+                setError('Please check your email inbox and click the confirmation link before logging in.');
+            } else {
+                setError(errorMessage);
+            }
         } finally {
             setLoading(false);
         }
