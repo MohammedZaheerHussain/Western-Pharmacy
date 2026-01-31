@@ -117,6 +117,20 @@ export async function createPharmacyClient(input: ClientInput, created_by: strin
             throw new Error(`Failed to create login: ${authError.message}`);
         }
         userId = authData.user?.id;
+
+        // For real accounts, trigger confirmation email
+        // Note: admin.createUser() doesn't send emails - we need to explicitly trigger it
+        if (!isDemoAccount && userId) {
+            console.log('[AdminSupabase] Sending confirmation email for real account:', input.email);
+            const { error: resendError } = await supabase.auth.resend({
+                type: 'signup',
+                email: input.email
+            });
+            if (resendError) {
+                console.error('[AdminSupabase] Failed to send confirmation email:', resendError.message);
+                // Don't throw - account is created, just log the email failure
+            }
+        }
     } else {
         // Fallback: Use regular signUp (requires email verification)
         // This path is only used if service role key is NOT configured
