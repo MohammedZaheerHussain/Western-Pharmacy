@@ -21,6 +21,8 @@ export interface AuthUser {
     email: string;
     role: UserRole;
     pharmacyName?: string;
+    planType?: string; // e.g., 'premium_lifetime', 'pro_yearly', 'demo_3day'
+    isDemo?: boolean;
 }
 
 /**
@@ -57,7 +59,9 @@ export async function signIn(email: string, password: string): Promise<AuthUser>
         id: data.user.id,
         email: data.user.email || email,
         role: getUserRole(data.user.user_metadata),
-        pharmacyName: data.user.user_metadata?.pharmacy_name
+        pharmacyName: data.user.user_metadata?.pharmacy_name,
+        planType: data.user.user_metadata?.plan_type as string | undefined,
+        isDemo: data.user.user_metadata?.is_demo as boolean | undefined
     };
 }
 
@@ -87,7 +91,9 @@ export async function getCurrentUser(): Promise<AuthUser | null> {
         id: user.id,
         email: user.email || '',
         role: getUserRole(user.user_metadata),
-        pharmacyName: user.user_metadata?.pharmacy_name
+        pharmacyName: user.user_metadata?.pharmacy_name,
+        planType: user.user_metadata?.plan_type as string | undefined,
+        isDemo: user.user_metadata?.is_demo as boolean | undefined
     };
 }
 
@@ -106,7 +112,9 @@ export function onAuthStateChange(callback: (user: AuthUser | null) => void) {
                 id: session.user.id,
                 email: session.user.email || '',
                 role: getUserRole(session.user.user_metadata),
-                pharmacyName: session.user.user_metadata?.pharmacy_name
+                pharmacyName: session.user.user_metadata?.pharmacy_name,
+                planType: session.user.user_metadata?.plan_type as string | undefined,
+                isDemo: session.user.user_metadata?.is_demo as boolean | undefined
             });
         } else {
             callback(null);
@@ -190,6 +198,8 @@ export async function refreshSession(): Promise<AuthUser | null> {
         id: session.user.id,
         email: session.user.email || '',
         role: getUserRole(session.user.user_metadata),
-        pharmacyName: session.user.user_metadata?.pharmacy_name
+        pharmacyName: session.user.user_metadata?.pharmacy_name,
+        planType: session.user.user_metadata?.plan_type as string | undefined,
+        isDemo: session.user.user_metadata?.is_demo as boolean | undefined
     };
 }

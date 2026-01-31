@@ -46,11 +46,38 @@ interface FeatureAccess {
 
 /** Get current user plan from settings/auth */
 function getCurrentPlan(_settings: PharmacySettings): UserPlan {
-    // In a full implementation, this would check Supabase auth
-    // For now, we'll use a setting or default to 'pro' for development
-    // @ts-expect-error - plan may not exist in settings type yet
-    const plan = _settings?.plan as UserPlan | undefined;
-    return plan || 'pro'; // Default to pro for development
+    // The plan_type comes from user_metadata (e.g., 'premium_lifetime', 'pro_yearly', 'demo_3day')
+    // @ts-expect-error - planType may not exist in settings type yet
+    const planType = _settings?.planType as string | undefined;
+
+    // @ts-expect-error - isDemo may not exist in settings type yet
+    const isDemo = _settings?.isDemo as boolean | undefined;
+
+    if (!planType) {
+        // If no plan type, default to pro for development/backwards compatibility
+        return 'pro';
+    }
+
+    // Parse the plan_type string to extract the tier
+    // Format: {tier}_{duration} or demo_{tier}_{duration} or demo_{duration}
+    const planLower = planType.toLowerCase();
+
+    // Check if it's a demo plan
+    if (planLower.startsWith('demo') || isDemo) {
+        // Parse demo plans: demo_3day, demo_basic_3day, demo_pro_3day, demo_premium_3day
+        if (planLower.includes('premium')) return 'demo_premium';
+        if (planLower.includes('pro')) return 'demo_pro';
+        if (planLower.includes('basic')) return 'demo_basic';
+        return 'demo'; // Default demo (gets all features)
+    }
+
+    // Parse real plans: premium_lifetime, pro_yearly, basic_yearly, etc.
+    if (planLower.includes('premium')) return 'premium';
+    if (planLower.includes('pro')) return 'pro';
+    if (planLower.includes('basic')) return 'basic';
+
+    // Fallback to pro
+    return 'pro';
 }
 
 /** Get plan display name */

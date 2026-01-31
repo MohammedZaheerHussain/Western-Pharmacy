@@ -308,21 +308,44 @@ function App() {
                 }
 
                 if (u.pharmacyName) {
-                    // Initialize settings with pharmacy name
+                    // Initialize settings with pharmacy name and plan info
                     const newSettings = initializeSettingsFromUserMetadata(u.pharmacyName);
-                    setSettings(newSettings);
+                    // Add plan info for feature access control
+                    setSettings({
+                        ...newSettings,
+                        planType: u.planType,
+                        isDemo: u.isDemo
+                    } as PharmacySettings);
+                } else {
+                    // Still set plan info even without pharmacy name
+                    setSettings(prev => ({
+                        ...prev,
+                        planType: u.planType,
+                        isDemo: u.isDemo
+                    } as PharmacySettings));
                 }
             }
             setAuthLoading(false);
         });
 
-        // Listen for auth changes
         const { unsubscribe } = onAuthStateChange((u) => {
             setUser(u);
             if (u?.pharmacyName) {
-                // Initialize settings with pharmacy name
+                // Initialize settings with pharmacy name and plan info
                 const newSettings = initializeSettingsFromUserMetadata(u.pharmacyName);
-                setSettings(newSettings);
+                // Add plan info for feature access control
+                setSettings({
+                    ...newSettings,
+                    planType: u.planType,
+                    isDemo: u.isDemo
+                } as PharmacySettings);
+            } else if (u) {
+                // Still set plan info even without pharmacy name
+                setSettings(prev => ({
+                    ...prev,
+                    planType: u.planType,
+                    isDemo: u.isDemo
+                } as PharmacySettings));
             }
         });
 
