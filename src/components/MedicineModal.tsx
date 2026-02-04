@@ -21,6 +21,7 @@ interface BatchEntry {
     batchNumber: string;
     expiryDate: string;
     quantity: number;
+    tabletsPerStrip: number; // Tablets per strip for this batch
     unitPrice: number; // Price per strip for this batch
 }
 
@@ -42,13 +43,14 @@ export interface MedicineFormData {
     expiryDate: string;
 }
 
-/** Create empty batch entry with default price from medicine */
-function createEmptyBatch(defaultPrice: number = 0): BatchEntry {
+/** Create empty batch entry with default price and tablets from medicine */
+function createEmptyBatch(defaultPrice: number = 0, defaultTabletsPerStrip: number = 10): BatchEntry {
     return {
         id: generateBatchId(),
         batchNumber: '',
         expiryDate: '',
         quantity: 0,
+        tabletsPerStrip: defaultTabletsPerStrip,
         unitPrice: defaultPrice
     };
 }
@@ -94,12 +96,13 @@ export function MedicineModal({ isOpen, medicine, onClose, onSave }: MedicineMod
                 let batches: BatchEntry[] = [];
 
                 if (medicine.batches && medicine.batches.length > 0) {
-                    // Multi-batch medicine - include per-batch prices
+                    // Multi-batch medicine - include per-batch prices and tablets per strip
                     batches = medicine.batches.map(b => ({
                         id: b.id,
                         batchNumber: b.batchNumber,
                         expiryDate: b.expiryDate,
                         quantity: b.quantity,
+                        tabletsPerStrip: b.tabletsPerStrip || medicine.tabletsPerStrip || 10,
                         unitPrice: b.unitPrice || medicine.unitPrice || 0
                     }));
                 } else {
@@ -109,6 +112,7 @@ export function MedicineModal({ isOpen, medicine, onClose, onSave }: MedicineMod
                         batchNumber: medicine.batchNumber || '',
                         expiryDate: medicine.expiryDate || '',
                         quantity: medicine.quantity || 0,
+                        tabletsPerStrip: medicine.tabletsPerStrip || 10,
                         unitPrice: medicine.unitPrice || 0
                     }];
                 }
@@ -131,7 +135,7 @@ export function MedicineModal({ isOpen, medicine, onClose, onSave }: MedicineMod
             } else {
                 setFormData({
                     ...initialFormData,
-                    batches: [createEmptyBatch()]
+                    batches: [createEmptyBatch(0, 10)]
                 });
             }
             setErrors({});
@@ -141,23 +145,40 @@ export function MedicineModal({ isOpen, medicine, onClose, onSave }: MedicineMod
         }
     }, [isOpen, medicine]);
 
-    // Handle Escape key to close
+    // Handle Escape key and arrow navigation
     useEffect(() => {
         function handleKeyDown(e: KeyboardEvent) {
             if (e.key === 'Escape' && isOpen) {
                 onClose();
+            }
+            // Arrow key navigation between form fields
+            if ((e.key === 'ArrowUp' || e.key === 'ArrowDown') && isOpen) {
+                const formElements = modalRef.current?.querySelectorAll(
+                    'input:not([disabled]), select:not([disabled]), textarea:not([disabled])'
+                );
+                if (!formElements || formElements.length === 0) return;
+
+                const activeElement = document.activeElement;
+                const elementsArray = Array.from(formElements) as HTMLElement[];
+                const currentIndex = elementsArray.indexOf(activeElement as HTMLElement);
+
+                if (currentIndex === -1) return;
+
+                e.preventDefault();
+                let nextIndex: number;
+                if (e.key === 'ArrowDown') {
+                    nextIndex = (currentIndex + 1) % elementsArray.length;
+                } else {
+                    nextIndex = (currentIndex - 1 + elementsArray.length) % elementsArray.length;
+                }
+                elementsArray[nextIndex]?.focus();
             }
         }
         window.addEventListener('keydown', handleKeyDown);
         return () => window.removeEventListener('keydown', handleKeyDown);
     }, [isOpen, onClose]);
 
-    // Click outside to close
-    const handleBackdropClick = (e: React.MouseEvent) => {
-        if (e.target === e.currentTarget) {
-            onClose();
-        }
-    };
+    // Backdrop click handler removed - dialog should only close via X button or Cancel
 
     // Form validation
     const validate = (): boolean => {
@@ -239,13 +260,13 @@ export function MedicineModal({ isOpen, medicine, onClose, onSave }: MedicineMod
 
     // Batch management
     const addBatch = () => {
-        // Use the last batch's price as default, fallback to form's unitPrice
-        const lastBatchPrice = formData.batches.length > 0
-            ? formData.batches[formData.batches.length - 1].unitPrice
-            : formData.unitPrice;
+        // Use the last batch's price and tablets per strip as default
+        const lastBatch = formData.batches.length > 0 ? formData.batches[formData.batches.length - 1] : null;
+        const lastBatchPrice = lastBatch?.unitPrice || formData.unitPrice;
+        const lastBatchTablets = lastBatch?.tabletsPerStrip || formData.tabletsPerStrip;
         setFormData(prev => ({
             ...prev,
-            batches: [...prev.batches, createEmptyBatch(lastBatchPrice)]
+            batches: [...prev.batches, createEmptyBatch(lastBatchPrice, lastBatchTablets)]
         }));
     };
 
@@ -279,7 +300,7 @@ export function MedicineModal({ isOpen, medicine, onClose, onSave }: MedicineMod
     if (!isOpen) return null;
 
     return (
-        <div className="modal-backdrop" onClick={handleBackdropClick}>
+        <div className="modal-backdrop">
             <div
                 ref={modalRef}
                 className="modal-content bg-white dark:bg-gray-900 rounded-2xl shadow-xl w-full max-w-lg max-h-[90vh] 
@@ -467,7 +488,7 @@ export function MedicineModal({ isOpen, medicine, onClose, onSave }: MedicineMod
                                 onChange={(e) => updateField('unitPrice', parseFloat(e.target.value) || 0)}
                                 className="w-full px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-600
                                          bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100
-                                         focus:border-medical-blue focus:ring-2 focus:ring-medical-blue/20"
+                                         focus:border-medical-blue focus:ring-2 focus:ring-medical-blue/20 no-spinner"
                                 placeholder="e.g., 12.50"
                             />
                         </div>
@@ -531,25 +552,26 @@ export function MedicineModal({ isOpen, medicine, onClose, onSave }: MedicineMod
                             {showBatches && (
                                 <div className="p-4 space-y-3 bg-white dark:bg-gray-900">
                                     {/* Batch Headers */}
-                                    <div className="grid grid-cols-12 gap-2 text-xs font-medium text-gray-500 dark:text-gray-400 px-1">
-                                        <div className="col-span-3">Batch Number</div>
-                                        <div className="col-span-3">Expiry Date</div>
-                                        <div className="col-span-2">Quantity</div>
-                                        <div className="col-span-3">Price (₹/strip)</div>
+                                    <div className="grid grid-cols-13 gap-1.5 text-xs font-medium text-gray-500 dark:text-gray-400 px-1">
+                                        <div className="col-span-2">Batch #</div>
+                                        <div className="col-span-3">Expiry</div>
+                                        <div className="col-span-2">Qty</div>
+                                        <div className="col-span-2">Tabs/Strip</div>
+                                        <div className="col-span-3">Price (₹)</div>
                                         <div className="col-span-1"></div>
                                     </div>
 
                                     {/* Batch Rows */}
                                     {formData.batches.map((batch, index) => (
-                                        <div key={batch.id} className="grid grid-cols-12 gap-2 items-center">
+                                        <div key={batch.id} className="grid grid-cols-13 gap-1.5 items-center">
                                             <input
                                                 type="text"
                                                 value={batch.batchNumber}
                                                 onChange={(e) => updateBatch(batch.id, 'batchNumber', e.target.value)}
-                                                className="col-span-3 px-2 py-1.5 text-sm rounded-lg border border-gray-200 dark:border-gray-600
+                                                className="col-span-2 px-2 py-1.5 text-sm rounded-lg border border-gray-200 dark:border-gray-600
                                                          bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100
                                                          focus:border-medical-blue focus:ring-1 focus:ring-medical-blue/20"
-                                                placeholder={`Batch ${index + 1}`}
+                                                placeholder={`B${index + 1}`}
                                             />
                                             <input
                                                 type="date"
@@ -566,8 +588,18 @@ export function MedicineModal({ isOpen, medicine, onClose, onSave }: MedicineMod
                                                 onChange={(e) => updateBatch(batch.id, 'quantity', parseInt(e.target.value) || 0)}
                                                 className="col-span-2 px-2 py-1.5 text-sm rounded-lg border border-gray-200 dark:border-gray-600
                                                          bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100
-                                                         focus:border-medical-blue focus:ring-1 focus:ring-medical-blue/20"
+                                                         focus:border-medical-blue focus:ring-1 focus:ring-medical-blue/20 no-spinner"
                                                 placeholder="Qty"
+                                            />
+                                            <input
+                                                type="number"
+                                                min="1"
+                                                value={batch.tabletsPerStrip}
+                                                onChange={(e) => updateBatch(batch.id, 'tabletsPerStrip', parseInt(e.target.value) || 1)}
+                                                className="col-span-2 px-2 py-1.5 text-sm rounded-lg border border-gray-200 dark:border-gray-600
+                                                         bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100
+                                                         focus:border-medical-blue focus:ring-1 focus:ring-medical-blue/20 no-spinner"
+                                                placeholder="10"
                                             />
                                             <input
                                                 type="number"
@@ -577,8 +609,8 @@ export function MedicineModal({ isOpen, medicine, onClose, onSave }: MedicineMod
                                                 onChange={(e) => updateBatch(batch.id, 'unitPrice', parseFloat(e.target.value) || 0)}
                                                 className="col-span-3 px-2 py-1.5 text-sm rounded-lg border border-gray-200 dark:border-gray-600
                                                          bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100
-                                                         focus:border-medical-blue focus:ring-1 focus:ring-medical-blue/20"
-                                                placeholder="₹ Price"
+                                                         focus:border-medical-blue focus:ring-1 focus:ring-medical-blue/20 no-spinner"
+                                                placeholder="₹"
                                             />
                                             <button
                                                 type="button"

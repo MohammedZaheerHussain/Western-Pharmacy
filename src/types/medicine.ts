@@ -24,6 +24,7 @@ export interface Batch {
     batchNumber: string;
     expiryDate: string;
     quantity: number;
+    tabletsPerStrip?: number; // Tablets per strip for this batch (optional, overrides medicine default)
     unitPrice: number; // Price per strip for this specific batch
 
     // Purchase tracking (Pro/Premium feature)
