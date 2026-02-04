@@ -10,18 +10,27 @@ import {
     MedicineLocation
 } from '../types/medicine';
 import * as storage from '../services/storage';
+import * as guardedOps from '../services/guardedOperations';
 import { useRole } from '../context/RoleContext';
 
 // Helper to determine stock status
 export function getStockStatus(medicine: Medicine): StockStatus {
     if (medicine.quantity === 0) return 'out';
-    if (medicine.quantity < 10) return 'low';
 
     const expiryDate = new Date(medicine.expiryDate);
     const today = new Date();
-    const thirtyDaysFromNow = new Date(today.getTime() + 30 * 24 * 60 * 60 * 1000);
+    today.setHours(0, 0, 0, 0); // Normalize to start of day
 
+    // Check if expired first
+    if (expiryDate < today) return 'expired';
+
+    // Check if expiring soon (within 30 days)
+    const thirtyDaysFromNow = new Date(today.getTime() + 30 * 24 * 60 * 60 * 1000);
     if (expiryDate <= thirtyDaysFromNow) return 'expiring';
+
+    // Check low stock after expiry checks
+    if (medicine.quantity < 10 && medicine.stockAlertEnabled !== false) return 'low';
+
     return 'ok';
 }
 
@@ -89,7 +98,7 @@ export function useMedicines() {
         medicine: Omit<Medicine, 'id' | 'createdAt' | 'updatedAt' | 'auditHistory'>
     ) => {
         try {
-            await storage.addMedicine(medicine);
+            await guardedOps.addMedicine(medicine);
             await refresh();
             logActivity('create', 'medicine', undefined, `Added medicine: ${medicine.name}`);
         } catch (err) {
@@ -105,7 +114,7 @@ export function useMedicines() {
         updates: Partial<Omit<Medicine, 'id' | 'createdAt' | 'auditHistory'>>
     ) => {
         try {
-            await storage.updateMedicine(id, updates);
+            await guardedOps.updateMedicine(id, updates);
             await refresh();
             logActivity('update', 'medicine', id, `Updated medicine`);
         } catch (err) {
@@ -118,7 +127,7 @@ export function useMedicines() {
     // Delete medicine
     const deleteMedicine = useCallback(async (id: string) => {
         try {
-            await storage.deleteMedicine(id);
+            await guardedOps.deleteMedicine(id);
             await refresh();
             logActivity('delete', 'medicine', id, `Deleted medicine`);
         } catch (err) {
@@ -131,7 +140,7 @@ export function useMedicines() {
     // Bulk delete
     const bulkDelete = useCallback(async (ids: string[]) => {
         try {
-            await storage.bulkDeleteMedicines(ids);
+            await guardedOps.bulkDeleteMedicines(ids);
             await refresh();
             logActivity('delete', 'medicine', undefined, `Bulk deleted ${ids.length} medicines`);
         } catch (err) {
@@ -144,7 +153,7 @@ export function useMedicines() {
     // Bulk update location
     const bulkUpdateLocation = useCallback(async (ids: string[], location: MedicineLocation) => {
         try {
-            await storage.bulkUpdateLocation(ids, location);
+            await guardedOps.bulkUpdateLocation(ids, location);
             await refresh();
             logActivity('update', 'medicine', undefined, `Updated location for ${ids.length} medicines`);
         } catch (err) {
@@ -159,7 +168,7 @@ export function useMedicines() {
         newMedicines: Omit<Medicine, 'id' | 'createdAt' | 'updatedAt' | 'auditHistory'>[]
     ) => {
         try {
-            await storage.importMedicines(newMedicines);
+            await guardedOps.importMedicines(newMedicines);
             await refresh();
         } catch (err) {
             setError('Failed to import medicines');

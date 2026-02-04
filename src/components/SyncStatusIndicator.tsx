@@ -11,12 +11,32 @@ interface SyncStatusIndicatorProps {
 }
 
 export function SyncStatusIndicator({ className = '', showDetails = false }: SyncStatusIndicatorProps) {
-    const { isOnline, isSyncing, pendingCount, lastSyncedAgo, error, syncNow } = useSyncStatus();
+    const { isOnline, isSyncing, pendingCount, lastSyncedAgo, error, fullBackup } = useSyncStatus();
     const [showTooltip, setShowTooltip] = useState(false);
+    const [syncProgress, setSyncProgress] = useState<{ current: number; total: number } | null>(null);
+    const [syncResult, setSyncResult] = useState<{ success: boolean; message: string } | null>(null);
 
     const handleClick = async () => {
         if (isOnline && !isSyncing) {
-            await syncNow();
+            setSyncResult(null);
+            try {
+                const result = await fullBackup((current, total) => {
+                    setSyncProgress({ current, total });
+                });
+                setSyncProgress(null);
+                setSyncResult({
+                    success: result.errors.length === 0,
+                    message: `Synced ${result.medicines} medicines, ${result.bills} bills${result.errors.length > 0 ? ` (${result.errors.length} errors)` : ''}`
+                });
+                // Clear success message after 5 seconds
+                setTimeout(() => setSyncResult(null), 5000);
+            } catch (e) {
+                setSyncProgress(null);
+                setSyncResult({
+                    success: false,
+                    message: String(e)
+                });
+            }
         }
     };
 
@@ -104,11 +124,34 @@ export function SyncStatusIndicator({ className = '', showDetails = false }: Syn
             {showTooltip && (
                 <div className="absolute top-full left-1/2 -translate-x-1/2 mt-2 z-50">
                     <div className="bg-gray-900 dark:bg-gray-700 text-white text-xs rounded-lg px-3 py-2 
-                                    shadow-lg whitespace-nowrap">
+                                    shadow-lg whitespace-nowrap min-w-[180px]">
                         <div className="font-medium">{label}</div>
                         <div className="text-gray-300 mt-0.5">{description}</div>
-                        {pendingCount > 0 && isOnline && !isSyncing && (
-                            <div className="text-blue-300 mt-1 text-[10px]">Click to sync</div>
+
+                        {/* Progress indicator */}
+                        {syncProgress && (
+                            <div className="mt-2">
+                                <div className="text-blue-300 text-[10px]">
+                                    Syncing {syncProgress.current} of {syncProgress.total}...
+                                </div>
+                                <div className="w-full bg-gray-600 rounded-full h-1 mt-1">
+                                    <div
+                                        className="bg-blue-400 h-1 rounded-full transition-all"
+                                        style={{ width: `${(syncProgress.current / syncProgress.total) * 100}%` }}
+                                    />
+                                </div>
+                            </div>
+                        )}
+
+                        {/* Result feedback */}
+                        {syncResult && (
+                            <div className={`mt-2 text-[10px] ${syncResult.success ? 'text-green-300' : 'text-red-300'}`}>
+                                {syncResult.message}
+                            </div>
+                        )}
+
+                        {!isSyncing && !syncProgress && isOnline && (
+                            <div className="text-blue-300 mt-1 text-[10px]">Click to backup all data</div>
                         )}
                         {/* Arrow */}
                         <div className="absolute -top-1.5 left-1/2 -translate-x-1/2 

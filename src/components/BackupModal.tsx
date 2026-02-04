@@ -3,6 +3,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { X, Download, Upload, AlertTriangle, CheckCircle, HardDrive, Clock, Shield } from 'lucide-react';
 import * as storage from '../services/storage';
+import { restoreFromBackup } from '../services/guardedOperations';
 
 interface BackupModalProps {
     isOpen: boolean;
@@ -77,7 +78,7 @@ export function BackupModal({ isOpen, onClose, onBackupComplete, onRestoreComple
         setMessage(null);
 
         try {
-            const result = await storage.restoreFromBackup(restorePreview, {
+            const result = await restoreFromBackup(restorePreview, {
                 clearExisting: restoreOptions.clearExisting,
                 mergeMode: 'skip'
             });
@@ -117,8 +118,8 @@ export function BackupModal({ isOpen, onClose, onBackupComplete, onRestoreComple
                     <button
                         onClick={() => { setTab('backup'); setMessage(null); setRestorePreview(null); }}
                         className={`flex-1 py-3 text-sm font-medium transition-colors ${tab === 'backup'
-                                ? 'text-blue-600 border-b-2 border-blue-600 bg-blue-50'
-                                : 'text-gray-500 hover:text-gray-700'
+                            ? 'text-blue-600 border-b-2 border-blue-600 bg-blue-50'
+                            : 'text-gray-500 hover:text-gray-700'
                             }`}
                     >
                         <Download className="inline mr-2" size={16} />
@@ -127,8 +128,8 @@ export function BackupModal({ isOpen, onClose, onBackupComplete, onRestoreComple
                     <button
                         onClick={() => { setTab('restore'); setMessage(null); }}
                         className={`flex-1 py-3 text-sm font-medium transition-colors ${tab === 'restore'
-                                ? 'text-blue-600 border-b-2 border-blue-600 bg-blue-50'
-                                : 'text-gray-500 hover:text-gray-700'
+                            ? 'text-blue-600 border-b-2 border-blue-600 bg-blue-50'
+                            : 'text-gray-500 hover:text-gray-700'
                             }`}
                     >
                         <Upload className="inline mr-2" size={16} />

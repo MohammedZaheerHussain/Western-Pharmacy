@@ -20,6 +20,7 @@ import {
     getPurchaseSummary
 } from '../services/supplierStorage';
 import { PurchaseOrder, Supplier, PurchaseSummary } from '../types/purchase';
+import { PurchaseOrderModal } from '../components/PurchaseOrderModal';
 
 interface PurchasesProps {
     formatCurrency: (amount: number) => string;
@@ -33,6 +34,7 @@ export function Purchases({ formatCurrency, onNavigateToSuppliers }: PurchasesPr
     const [loading, setLoading] = useState(true);
     const [search, setSearch] = useState('');
     const [filterStatus, setFilterStatus] = useState<string>('all');
+    const [showPurchaseModal, setShowPurchaseModal] = useState(false);
 
     // Load data
     const loadData = useCallback(async () => {
@@ -110,10 +112,7 @@ export function Purchases({ formatCurrency, onNavigateToSuppliers }: PurchasesPr
                 </div>
 
                 <button
-                    onClick={() => {
-                        // TODO: Open create purchase modal
-                        alert('Create purchase form coming soon!');
-                    }}
+                    onClick={() => setShowPurchaseModal(true)}
                     className="flex items-center gap-2 px-4 py-2 bg-medical-blue text-white
                              rounded-lg hover:bg-medical-blue-dark transition-colors font-medium"
                 >
@@ -331,6 +330,13 @@ export function Purchases({ formatCurrency, onNavigateToSuppliers }: PurchasesPr
                     </div>
                 </div>
             )}
+
+            {/* Purchase Order Modal */}
+            <PurchaseOrderModal
+                isOpen={showPurchaseModal}
+                onClose={() => setShowPurchaseModal(false)}
+                onSuccess={loadData}
+            />
         </div>
     );
 }

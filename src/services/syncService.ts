@@ -240,6 +240,123 @@ class SyncService {
         };
     }
 
+    /**
+     * Push ALL local data to cloud (Full Backup)
+     * This uploads all medicines and bills from IndexedDB to Supabase
+     * Uses upsert to safely update existing or insert new records
+     * Data is isolated by client_id (pharmacy's unique user ID)
+     */
+    async pushAllToCloud(
+        onProgress?: (current: number, total: number, type: 'medicine' | 'bill') => void
+    ): Promise<{ medicines: number; bills: number; errors: string[] }> {
+        if (!this.supabase || !this.clientId) {
+            throw new Error('Sync not initialized - please log in first');
+        }
+
+        if (!networkStatus.isOnline) {
+            throw new Error('Cannot sync while offline');
+        }
+
+        const errors: string[] = [];
+        const now = new Date().toISOString();
+
+        // Dynamically import storage to get all data
+        const { getAllMedicines, getAllBills } = await import('./storage');
+
+        // Get all local data
+        const medicines = await getAllMedicines();
+        const bills = await getAllBills();
+        const totalItems = medicines.length + bills.length;
+        let processedCount = 0;
+
+        console.log(`[SyncService] Starting full backup for client ${this.clientId}`);
+        console.log(`[SyncService] Medicines: ${medicines.length}, Bills: ${bills.length}`);
+
+        // Sync medicines in batches of 50 for better performance
+        const BATCH_SIZE = 50;
+
+        // Push medicines
+        for (let i = 0; i < medicines.length; i += BATCH_SIZE) {
+            const batch = medicines.slice(i, i + BATCH_SIZE);
+            const records = batch.map(medicine => ({
+                client_id: this.clientId,
+                local_id: medicine.id,
+                data: medicine,
+                synced_at: now
+            }));
+
+            try {
+                const { error } = await this.supabase
+                    .from('client_medicines')
+                    .upsert(records, { onConflict: 'client_id,local_id' });
+
+                if (error) {
+                    console.error('[SyncService] Batch medicine sync error:', error);
+                    errors.push(`Medicine batch ${i / BATCH_SIZE + 1}: ${error.message}`);
+                }
+            } catch (e) {
+                errors.push(`Medicine batch ${i / BATCH_SIZE + 1}: ${String(e)}`);
+            }
+
+            processedCount += batch.length;
+            onProgress?.(processedCount, totalItems, 'medicine');
+        }
+
+        // Push bills
+        for (let i = 0; i < bills.length; i += BATCH_SIZE) {
+            const batch = bills.slice(i, i + BATCH_SIZE);
+            const records = batch.map(bill => ({
+                client_id: this.clientId,
+                local_id: bill.id,
+                data: bill,
+                synced_at: now
+            }));
+
+            try {
+                const { error } = await this.supabase
+                    .from('client_bills')
+                    .upsert(records, { onConflict: 'client_id,local_id' });
+
+                if (error) {
+                    console.error('[SyncService] Batch bill sync error:', error);
+                    errors.push(`Bill batch ${i / BATCH_SIZE + 1}: ${error.message}`);
+                }
+            } catch (e) {
+                errors.push(`Bill batch ${i / BATCH_SIZE + 1}: ${String(e)}`);
+            }
+
+            processedCount += batch.length;
+            onProgress?.(processedCount, totalItems, 'bill');
+        }
+
+        // Update last sync status
+        const result = {
+            medicines: medicines.length,
+            bills: bills.length,
+            errors
+        };
+
+        // Save sync timestamp
+        localStorage.setItem(SYNC_STATUS_KEY, JSON.stringify({
+            lastSyncedAt: now,
+            result: {
+                success: errors.length === 0,
+                syncedCount: medicines.length + bills.length,
+                failedCount: errors.length
+            }
+        }));
+
+        // Notify listeners
+        this.notifyListeners({
+            syncing: false,
+            lastSyncedAt: now,
+            pendingCount: 0
+        });
+
+        console.log(`[SyncService] Full backup complete:`, result);
+        return result;
+    }
+
     /** Get sync queue from IndexedDB */
     private async getQueue(): Promise<SyncQueueItem[]> {
         // For now, use localStorage as a simple queue

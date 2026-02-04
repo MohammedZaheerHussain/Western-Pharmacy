@@ -39,6 +39,8 @@ import { ActivityLogs } from './pages/ActivityLogs';
 import { CustomersPage } from './pages/CustomersPage';
 import { BarcodeScanner } from './components/BarcodeScanner';
 import { ExpiryAlertBanner } from './components/ExpiryAlertBanner';
+import { LicenseExpiredOverlay } from './components/LicenseExpiredOverlay';
+import { ExpiryWarningBanner } from './components/ExpiryWarningBanner';
 import { getCurrentUser, signOut, onAuthStateChange, isAuthEnabled, AuthUser, isSuperAdmin, isEmailVerified } from './services/auth';
 import { EmailVerificationGate } from './components/EmailVerificationGate';
 import { SettlementModal } from './components/SettlementModal';
@@ -46,6 +48,8 @@ import { Settlement } from './types/user';
 import { Users, ClipboardList, Calculator, Lock } from 'lucide-react';
 import useFeatureAccess, { FeatureGate } from './hooks/useFeatureAccess';
 import { getClientByUserId } from './services/adminSupabase';
+import { setLicenseStatus } from './services/guardedOperations';
+import { calculateLicenseStatus } from './services/licenseGuard';
 
 type ViewMode = 'inventory' | 'billing' | 'reports' | 'suppliers' | 'purchases' | 'analytics' | 'staff' | 'activity' | 'customers';
 type Theme = 'light' | 'dark' | 'system';
@@ -79,59 +83,6 @@ function formatCurrency(amount: number): string {
         minimumFractionDigits: 0,
         maximumFractionDigits: 2
     }).format(amount);
-}
-
-/** Demo Expired Overlay - Full-screen blocking overlay for expired demos */
-function DemoExpiredOverlay() {
-    return (
-        <div className="fixed inset-0 z-[9999] bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 flex items-center justify-center p-4">
-            <div className="max-w-md w-full text-center">
-                {/* Logo */}
-                <div className="w-20 h-20 mx-auto mb-6 bg-white/10 rounded-2xl flex items-center justify-center backdrop-blur">
-                    <img src="/billova-logo.png" alt="Billova" className="w-14 h-14 object-contain" />
-                </div>
-
-                {/* Lock Icon */}
-                <div className="w-16 h-16 mx-auto mb-4 bg-red-500/20 rounded-full flex items-center justify-center">
-                    <Lock size={32} className="text-red-400" />
-                </div>
-
-                {/* Title */}
-                <h1 className="text-2xl font-bold text-white mb-2">
-                    Your Demo Has Expired
-                </h1>
-
-                {/* Message */}
-                <p className="text-gray-400 mb-8">
-                    Your 3-day trial period has ended. To continue using Billova Medical Billing,
-                    please upgrade your license.
-                </p>
-
-                {/* Contact Info */}
-                <div className="bg-white/5 rounded-xl p-6 backdrop-blur border border-white/10">
-                    <p className="text-sm text-gray-500 mb-4">Contact Billova Team to upgrade:</p>
-
-                    <a
-                        href="mailto:billovamedical@gmail.com?subject=Demo Expired - License Upgrade Request"
-                        className="flex items-center justify-center gap-2 w-full py-3 px-4 bg-blue-600 hover:bg-blue-700 
-                                   text-white font-medium rounded-lg transition-colors mb-3"
-                    >
-                        <Mail size={18} />
-                        billovamedical@gmail.com
-                    </a>
-
-                    <p className="text-xs text-gray-500">
-                        We'll help you get set up with the right plan for your pharmacy.
-                    </p>
-                </div>
-
-                {/* Branding */}
-                <p className="text-xs text-gray-600 mt-6">
-                    Powered by Billova Medical Billing
-                </p>
-            </div>
-        </div>
-    );
 }
 
 /** Account Suspended Overlay - Full-screen blocking overlay for deactivated clients */
@@ -242,7 +193,17 @@ function App() {
     // Feature access control based on plan
     const featureAccess = useFeatureAccess(settings);
 
-    // Auth state
+    // Sync license status to guarded operations module for double-layer protection
+    useEffect(() => {
+        const isDemo = featureAccess.isDemo;
+        const licenseStatus = calculateLicenseStatus(
+            isDemo,
+            settings?.demoExpiresAt || null,
+            // @ts-expect-error - licenseExpiresAt may not exist in settings type yet
+            settings?.licenseExpiresAt || null
+        );
+        setLicenseStatus(licenseStatus);
+    }, [featureAccess, settings]);
     const [user, setUser] = useState<AuthUser | null>(null);
     const [authLoading, setAuthLoading] = useState(true);
     const [emailVerified, setEmailVerified] = useState<boolean | null>(null); // null = checking
@@ -526,9 +487,22 @@ function App() {
         }} />;
     }
 
-    // Demo expired gate - block expired demo accounts
-    if (featureAccess.isDemoExpired) {
-        return <DemoExpiredOverlay />;
+    // License/Demo expired gate - block expired accounts (not during grace period)
+    if (featureAccess.isExpired && !featureAccess.isGracePeriod) {
+        return (
+            <LicenseExpiredOverlay
+                isDemoExpired={featureAccess.isDemoExpired}
+                isLicenseExpired={featureAccess.isLicenseExpired}
+                daysSinceExpiry={featureAccess.expiryDate
+                    ? Math.floor((new Date().getTime() - featureAccess.expiryDate.getTime()) / (1000 * 60 * 60 * 24))
+                    : 0}
+                pharmacyName={user?.pharmacyName}
+                onLogout={async () => {
+                    await signOut();
+                    setUser(null);
+                }}
+            />
+        );
     }
 
     if (loading) {
@@ -544,6 +518,16 @@ function App() {
 
     return (
         <div className="min-h-screen bg-gray-50 dark:bg-gray-900 transition-colors">
+            {/* Expiry Warning Banner - shows for demo users nearing expiry or during grace period */}
+            {(featureAccess.isDemo && featureAccess.daysRemaining <= 3 && featureAccess.daysRemaining > 0) || featureAccess.isGracePeriod ? (
+                <ExpiryWarningBanner
+                    daysRemaining={featureAccess.isGracePeriod ? featureAccess.graceDaysRemaining : featureAccess.daysRemaining}
+                    isGracePeriod={featureAccess.isGracePeriod}
+                    isDemo={featureAccess.isDemo}
+                    pharmacyName={user?.pharmacyName}
+                />
+            ) : null}
+
             {/* Header */}
             <header className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 sticky-header transition-colors">
                 <div className="max-w-7xl mx-auto px-4 sm:px-6 py-4">

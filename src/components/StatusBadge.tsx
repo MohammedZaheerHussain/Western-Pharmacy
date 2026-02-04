@@ -20,6 +20,10 @@ const STATUS_CONFIG: Record<StockStatus, { label: string; className: string }> =
         label: 'Expiring Soon',
         className: 'bg-orange-100 text-orange-700 border-orange-200'
     },
+    expired: {
+        label: 'Expired',
+        className: 'bg-rose-200 text-rose-800 border-rose-300'
+    },
     out: {
         label: 'Out of Stock',
         className: 'bg-gray-100 text-gray-700 border-gray-200'

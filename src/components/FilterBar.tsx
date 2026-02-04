@@ -45,6 +45,7 @@ export function FilterBar({ filters, onChange }: FilterBarProps) {
                 <option value="ok">In Stock</option>
                 <option value="low">Low Stock (&lt;10)</option>
                 <option value="expiring">Expiring Soon</option>
+                <option value="expired">Expired</option>
                 <option value="out">Out of Stock</option>
             </select>
 

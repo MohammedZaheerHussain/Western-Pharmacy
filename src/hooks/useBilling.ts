@@ -3,7 +3,8 @@
 
 import { useState, useCallback, useMemo } from 'react';
 import { Medicine, CartItem, Bill, BillItem } from '../types/medicine';
-import { createBill, updateBill, getAllBills, exportBillsToCSV } from '../services/storage';
+import { createBill, updateBill } from '../services/guardedOperations';
+import { getAllBills, exportBillsToCSV } from '../services/storage';
 import { useRole } from '../context/RoleContext';
 import { Customer, pointsToRupees, calculatePointsEarned } from '../types/customer';
 import { awardPoints, redeemPoints } from '../services/customerStorage';
@@ -12,9 +13,55 @@ import { getCurrentBranchId } from '../services/branchStorage';
 /** Low stock threshold - matches inventory alerts */
 export const LOW_STOCK_THRESHOLD = 10;
 
-/** Extended cart item with edit tracking */
+/** Batch price info for FEFO pricing */
+interface BatchPriceInfo {
+    batchId: string;
+    batchNumber: string;
+    quantity: number; // Available qty in this batch
+    unitPrice: number; // Price per strip for this batch
+}
+
+/**
+ * Calculate FEFO-based total cost from stored batch prices
+ * This is used when updating quantities to ensure correct per-batch pricing
+ */
+function calculateFEFOTotal(
+    tablets: number,
+    tabletsPerStrip: number,
+    batchPrices: BatchPriceInfo[] | undefined,
+    fallbackPricePerStrip: number
+): number {
+    if (!batchPrices || batchPrices.length === 0) {
+        // No batch prices stored, use fallback
+        const strips = tablets / tabletsPerStrip;
+        return strips * fallbackPricePerStrip;
+    }
+
+    let remainingTablets = tablets;
+    let totalCost = 0;
+
+    for (const batch of batchPrices) {
+        if (remainingTablets <= 0) break;
+
+        const tabletsFromBatch = Math.min(remainingTablets, batch.quantity);
+        const stripsFromBatch = tabletsFromBatch / tabletsPerStrip;
+        totalCost += stripsFromBatch * batch.unitPrice;
+        remainingTablets -= tabletsFromBatch;
+    }
+
+    // If we need more tablets than available in batches, use fallback for remainder
+    if (remainingTablets > 0) {
+        const remainingStrips = remainingTablets / tabletsPerStrip;
+        totalCost += remainingStrips * fallbackPricePerStrip;
+    }
+
+    return totalCost;
+}
+
+/** Extended cart item with edit tracking and batch pricing */
 interface EditableCartItem extends CartItem {
     originalQuantity?: number; // For edit mode: track original qty for delta
+    batchPrices?: BatchPriceInfo[]; // FEFO-sorted batch prices for accurate pricing
 }
 
 interface UseBillingReturn {
@@ -144,9 +191,11 @@ export function useBilling(): UseBillingReturn {
             .sort((a, b) => new Date(a.expiryDate).getTime() - new Date(b.expiryDate).getTime());
 
         // Get weighted average price based on FEFO batch allocation
-        const getFEFOPrice = (tablets: number): { unitPrice: number; batchBreakdown: string } => {
+        const getFEFOPrice = (tablets: number): { unitPrice: number; batchBreakdown: string; totalCost: number } => {
             if (sortedBatches.length === 0) {
-                return { unitPrice: medicine.unitPrice || 0, batchBreakdown: '' };
+                const price = medicine.unitPrice || 0;
+                const strips = tablets / tabletsPerStrip;
+                return { unitPrice: price, batchBreakdown: '', totalCost: strips * price };
             }
 
             let remainingTablets = tablets;
@@ -171,9 +220,18 @@ export function useBilling(): UseBillingReturn {
             const effectiveStripPrice = tablets > 0 ? (totalCost / (tablets / tabletsPerStrip)) : 0;
             return {
                 unitPrice: effectiveStripPrice,
-                batchBreakdown: allocations.length > 1 ? allocations.join(', ') : ''
+                batchBreakdown: allocations.length > 1 ? allocations.join(', ') : '',
+                totalCost
             };
         };
+
+        // Create batch price info for storage
+        const batchPrices: BatchPriceInfo[] = sortedBatches.map(b => ({
+            batchId: b.id,
+            batchNumber: b.batchNumber,
+            quantity: b.quantity,
+            unitPrice: b.unitPrice || medicine.unitPrice || 0
+        }));
 
         setCart(prev => {
             const existingIndex = prev.findIndex(item => item.medicineId === medicine.id);
@@ -193,14 +251,12 @@ export function useBilling(): UseBillingReturn {
                     return prev;
                 }
 
-                // Get FEFO-based price for the new quantity
-                const { unitPrice } = getFEFOPrice(newTotalTablets);
+                // Get FEFO-based cost for the new quantity
+                const { unitPrice, totalCost } = getFEFOPrice(newTotalTablets);
 
                 // Recalculate strip/loose breakdown
                 const newStripQty = Math.floor(newTotalTablets / tabletsPerStrip);
                 const newLooseQty = newTotalTablets % tabletsPerStrip;
-                const stripTotal = newStripQty * unitPrice;
-                const looseTotal = tabletsPerStrip > 1 ? newLooseQty * (unitPrice / tabletsPerStrip) : 0;
 
                 const updated = [...prev];
                 updated[existingIndex] = {
@@ -209,7 +265,8 @@ export function useBilling(): UseBillingReturn {
                     unitPrice,
                     stripQty: newStripQty,
                     looseQty: newLooseQty,
-                    total: stripTotal + looseTotal
+                    total: totalCost, // Use actual batch-calculated total
+                    batchPrices // Update batch prices
                 };
 
                 // Low stock warning
@@ -229,14 +286,12 @@ export function useBilling(): UseBillingReturn {
                 return prev;
             }
 
-            // Get FEFO-based price
-            const { unitPrice } = getFEFOPrice(quantity);
+            // Get FEFO-based pricing
+            const { unitPrice, totalCost } = getFEFOPrice(quantity);
 
             // Calculate initial strip/loose breakdown
             const stripQty = Math.floor(quantity / tabletsPerStrip);
             const looseQty = quantity % tabletsPerStrip;
-            const stripTotal = stripQty * unitPrice;
-            const looseTotal = tabletsPerStrip > 1 ? looseQty * (unitPrice / tabletsPerStrip) : 0;
 
             const newItem: EditableCartItem = {
                 medicineId: medicine.id,
@@ -247,8 +302,9 @@ export function useBilling(): UseBillingReturn {
                 tabletsPerStrip,
                 stripQty,
                 looseQty,
-                total: stripTotal + looseTotal,
-                availableStock: medicine.quantity
+                total: totalCost, // Use actual batch-calculated total
+                availableStock: medicine.quantity,
+                batchPrices // Store for future recalculations
             };
 
             // Low stock warning
@@ -312,15 +368,21 @@ export function useBilling(): UseBillingReturn {
             const tabletsPerStrip = item.tabletsPerStrip || 1;
             const stripQty = Math.floor(quantity / tabletsPerStrip);
             const looseQty = quantity % tabletsPerStrip;
-            const stripTotal = stripQty * item.unitPrice;
-            const looseTotal = tabletsPerStrip > 1 ? looseQty * (item.unitPrice / tabletsPerStrip) : 0;
+
+            // Calculate FEFO-based total from stored batch prices
+            const total = calculateFEFOTotal(
+                quantity,
+                tabletsPerStrip,
+                item.batchPrices,
+                item.unitPrice
+            );
 
             updated[itemIndex] = {
                 ...item,
                 quantity,
                 stripQty,
                 looseQty,
-                total: stripTotal + looseTotal
+                total
             };
 
             // Low stock warning
@@ -369,9 +431,13 @@ export function useBilling(): UseBillingReturn {
                 return prev;
             }
 
-            // Calculate price
-            const stripTotal = stripQty * item.unitPrice;
-            const looseTotal = tabletsPerStrip > 1 ? validLoose * (item.unitPrice / tabletsPerStrip) : 0;
+            // Calculate FEFO-based total from stored batch prices
+            const total = calculateFEFOTotal(
+                totalTablets,
+                tabletsPerStrip,
+                item.batchPrices,
+                item.unitPrice
+            );
 
             const updated = [...prev];
             updated[itemIndex] = {
@@ -379,7 +445,7 @@ export function useBilling(): UseBillingReturn {
                 quantity: totalTablets,
                 stripQty,
                 looseQty: validLoose,
-                total: stripTotal + looseTotal
+                total
             };
 
             // Low stock warning

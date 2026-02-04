@@ -24,8 +24,15 @@ export interface UseSyncStatusResult {
     /** Any sync error */
     error?: string;
 
-    /** Trigger immediate sync */
+    /** Trigger immediate sync (queue only) */
     syncNow: () => Promise<void>;
+
+    /** Full backup: Push ALL local data to cloud */
+    fullBackup: (onProgress?: (current: number, total: number, type: 'medicine' | 'bill') => void) => Promise<{
+        medicines: number;
+        bills: number;
+        errors: string[];
+    }>;
 }
 
 export function useSyncStatus(): UseSyncStatusResult {
@@ -43,6 +50,29 @@ export function useSyncStatus(): UseSyncStatusResult {
 
     const syncNow = useCallback(async () => {
         await syncService.syncNow();
+    }, []);
+
+    const fullBackup = useCallback(async (
+        onProgress?: (current: number, total: number, type: 'medicine' | 'bill') => void
+    ) => {
+        setStatus(prev => ({ ...prev, syncing: true }));
+        try {
+            const result = await syncService.pushAllToCloud(onProgress);
+            setStatus(prev => ({
+                ...prev,
+                syncing: false,
+                lastSyncedAt: new Date().toISOString(),
+                pendingCount: 0
+            }));
+            return result;
+        } catch (error) {
+            setStatus(prev => ({
+                ...prev,
+                syncing: false,
+                error: String(error)
+            }));
+            throw error;
+        }
     }, []);
 
     // Calculate time since last sync
@@ -69,6 +99,7 @@ export function useSyncStatus(): UseSyncStatusResult {
         lastSyncedAt: status.lastSyncedAt,
         lastSyncedAgo: getLastSyncedAgo(),
         error: status.error,
-        syncNow
+        syncNow,
+        fullBackup
     };
 }

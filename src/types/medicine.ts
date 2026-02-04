@@ -69,6 +69,7 @@ export interface Medicine {
     createdAt: string;
     updatedAt: string;
     branchId?: string;       // Multi-branch: which branch owns this
+    stockAlertEnabled?: boolean; // Enable/disable low stock alerts (default: true)
     auditHistory: AuditEntry[];
 }
 
@@ -107,7 +108,7 @@ export const MEDICINE_SCHEDULES: { value: MedicineSchedule; label: string; descr
     { value: 'E1', label: 'E1', description: 'Emergency - Warning required' },
 ];
 
-export type StockStatus = 'ok' | 'low' | 'expiring' | 'out';
+export type StockStatus = 'ok' | 'low' | 'expiring' | 'expired' | 'out';
 
 export type SortField = 'name' | 'quantity' | 'expiryDate';
 export type SortDirection = 'asc' | 'desc';

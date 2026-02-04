@@ -1,10 +1,13 @@
 /**
  * Feature Access Hook
  * Controls access to Pro/Premium features based on user plan
+ * Also enforces license expiry and view-only mode
  */
 
 import { useMemo } from 'react';
 import { PharmacySettings } from '../components/SettingsModal';
+import { openPurchaseModal } from '../components/PurchaseModal';
+import { calculateLicenseStatus } from '../services/licenseGuard';
 
 export type UserPlan = 'demo' | 'demo_basic' | 'demo_pro' | 'demo_premium' | 'basic' | 'pro' | 'premium';
 
@@ -38,10 +41,23 @@ interface FeatureAccess {
     isDemo: boolean;
     effectiveTier: 'basic' | 'pro' | 'premium';
 
-    // Demo expiry
+    // License expiry (separate flags for analytics)
     isDemoExpired: boolean;
-    demoExpiresAt: string | null;
-    daysRemaining: number;
+    isLicenseExpired: boolean;
+    isExpired: boolean;          // Combined: demo OR license expired
+    isGracePeriod: boolean;      // Paid plans only, 7 days after expiry
+    graceDaysRemaining: number;
+    daysRemaining: number;       // Days until expiry (0 if expired)
+    expiryDate: Date | null;
+
+    // Write permissions (blocked when expired and not in grace)
+    canWrite: boolean;
+    canCreateBill: boolean;
+    canEditInventory: boolean;
+    canCreatePurchase: boolean;
+    canEditSettings: boolean;
+    canExport: boolean;          // Always true - view-only allows export
+    canViewData: boolean;        // Always true
 }
 
 /** Get current user plan from settings/auth */
@@ -123,15 +139,21 @@ export function useFeatureAccess(settings: PharmacySettings): FeatureAccess {
         const isPro = tier === 'pro' || tier === 'premium';
         const isPremium = tier === 'premium';
 
-        // Check demo expiry
-        const demoExpiresAt = settings?.demoExpiresAt;
-        const expiryDate = demoExpiresAt ? new Date(demoExpiresAt) : null;
-        const now = new Date();
-        const isDemoExpired = isDemo && expiryDate ? now > expiryDate : false;
-        const daysRemaining = expiryDate ? Math.max(0, Math.ceil((expiryDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24))) : 0;
+        // Get license status from centralized service
+        const licenseStatus = calculateLicenseStatus(
+            isDemo,
+            settings?.demoExpiresAt || null,
+            // @ts-expect-error - licenseExpiresAt may not exist in settings type yet
+            settings?.licenseExpiresAt || null
+        );
+
+        // Calculate days remaining until expiry (for countdown)
+        const daysRemaining = licenseStatus.expiryDate
+            ? Math.max(0, Math.ceil((licenseStatus.expiryDate.getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24)))
+            : Infinity;
 
         return {
-            // Basic features - all plans
+            // Basic features - all plans (VIEW access always allowed)
             canAccessInventory: true,
             canAccessBilling: true,
             canAccessBasicReports: true,
@@ -160,12 +182,25 @@ export function useFeatureAccess(settings: PharmacySettings): FeatureAccess {
             isDemo,
             effectiveTier: tier,
 
-            // Demo expiry
-            isDemoExpired,
-            demoExpiresAt: demoExpiresAt || null,
-            daysRemaining
+            // License expiry (separate flags for analytics/diagnostics)
+            isDemoExpired: licenseStatus.isDemoExpired,
+            isLicenseExpired: licenseStatus.isLicenseExpired,
+            isExpired: licenseStatus.isExpired,
+            isGracePeriod: licenseStatus.isGracePeriod,
+            graceDaysRemaining: licenseStatus.graceDaysRemaining,
+            daysRemaining,
+            expiryDate: licenseStatus.expiryDate,
+
+            // Write permissions (blocked when expired and not in grace)
+            canWrite: licenseStatus.canWrite,
+            canCreateBill: licenseStatus.canWrite,
+            canEditInventory: licenseStatus.canWrite,
+            canCreatePurchase: licenseStatus.canWrite && isPro,
+            canEditSettings: licenseStatus.canWrite,
+            canExport: true,      // Always allowed - view-only mode still permits export
+            canViewData: true     // Always allowed
         };
-    }, [plan]);
+    }, [plan, settings?.demoExpiresAt]);
 }
 
 /** Component to show upgrade prompt when accessing locked feature */
@@ -270,8 +305,8 @@ export function LockedFeatureOverlay({ children, isLocked, requiredPlan, onClick
         if (onClick) {
             onClick();
         } else {
-            // Show a toast or alert
-            alert(`This feature requires ${requiredPlan === 'premium' ? 'Premium' : 'Pro'} plan. Contact your admin to upgrade.`);
+            // Open purchase modal instead of alert
+            openPurchaseModal(undefined, requiredPlan);
         }
     };
 
@@ -311,8 +346,8 @@ interface LockedMenuItemProps {
 export function LockedMenuItem({ icon, label, isLocked, requiredPlan, onClick, className = '' }: LockedMenuItemProps) {
     const handleClick = () => {
         if (isLocked) {
-            // Could show a modal here instead
-            alert(`${label} is a ${requiredPlan === 'premium' ? 'Premium' : 'Pro'} feature. Upgrade your plan to access.`);
+            // Open purchase modal with feature context
+            openPurchaseModal(label, requiredPlan);
         } else {
             onClick();
         }

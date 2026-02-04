@@ -35,6 +35,7 @@ export interface MedicineFormData {
     unitPrice: number;
     location: MedicineLocation;
     barcode?: string; // EAN/UPC barcode for scanning (Pro feature)
+    stockAlertEnabled: boolean; // Enable/disable low stock alerts
     // Multi-batch support
     batches: BatchEntry[];
     // Computed from batches
@@ -65,6 +66,7 @@ const initialFormData: MedicineFormData = {
     unitPrice: 0,
     location: { rack: '', shelf: '', drawer: '' },
     barcode: '', // Pro feature
+    stockAlertEnabled: true, // Default to enabled
     batches: [createEmptyBatch()],
     quantity: 0,
     batchNumber: '',
@@ -127,6 +129,7 @@ export function MedicineModal({ isOpen, medicine, onClose, onSave }: MedicineMod
                     unitPrice: medicine.unitPrice || 0,
                     location: { ...medicine.location },
                     barcode: medicine.barcode || '',
+                    stockAlertEnabled: medicine.stockAlertEnabled !== false, // Default to true
                     batches,
                     quantity: medicine.quantity,
                     batchNumber: medicine.batchNumber,
@@ -473,6 +476,20 @@ export function MedicineModal({ isOpen, medicine, onClose, onSave }: MedicineMod
                                 placeholder="e.g., 8901234567890"
                             />
                             <p className="text-xs text-gray-400 mt-0.5">EAN-13, EAN-8, UPC-A, or UPC-E barcode for quick scanning</p>
+                        </div>
+
+                        {/* Stock Alert Toggle */}
+                        <div className="flex items-center gap-3 py-2">
+                            <input
+                                type="checkbox"
+                                id="stockAlertEnabled"
+                                checked={formData.stockAlertEnabled}
+                                onChange={(e) => updateField('stockAlertEnabled', e.target.checked)}
+                                className="w-4 h-4 text-medical-blue rounded border-gray-300 focus:ring-medical-blue"
+                            />
+                            <label htmlFor="stockAlertEnabled" className="text-sm text-gray-700 dark:text-gray-300">
+                                Enable low stock alerts for this medicine
+                            </label>
                         </div>
 
                         {/* Unit Price */}
