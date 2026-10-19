@@ -27,6 +27,7 @@ import {
 import { LoginPage } from './components/LoginPage';
 import { AdminApp } from './pages/AdminApp';
 import { syncService } from './services/syncService';
+import { getAllMedicines } from './services/storage';
 import { SyncStatusIndicator } from './components/SyncStatusIndicator';
 import { InstallButton, InstallSuccessToast } from './components/InstallButton';
 import { Plus, Package, Receipt, Sun, Moon, Settings, HardDrive, BarChart3, Truck, ShoppingCart, TrendingUp, ScanLine, Mail } from 'lucide-react';
@@ -285,12 +286,42 @@ function App() {
                         isDemo: u.isDemo
                     } as PharmacySettings));
                 }
+
+                // Bind sync to logged-in user and pull cloud data if local storage was wiped
+                syncService.initialize(u.id);
+                try {
+                    const localMeds = await getAllMedicines();
+                    if (localMeds.length <= 4) {
+                        console.log('[AutoSync] Fresh/repaired PC detected. Hydrating from Supabase...');
+                        const pullRes = await syncService.pullFromCloud();
+                        if (pullRes.medicines > 0) {
+                            console.log(`[AutoSync] Successfully restored ${pullRes.medicines} medicines from cloud!`);
+                            await refreshMedicines();
+                        }
+                    }
+                } catch (syncErr) {
+                    console.warn('[AutoSync] Cloud hydration check skipped:', syncErr);
+                }
             }
             setAuthLoading(false);
         });
 
-        const { unsubscribe } = onAuthStateChange((u) => {
+        const { unsubscribe } = onAuthStateChange(async (u) => {
             setUser(u);
+            if (u) {
+                syncService.initialize(u.id);
+                try {
+                    const localMeds = await getAllMedicines();
+                    if (localMeds.length <= 4) {
+                        const pullRes = await syncService.pullFromCloud();
+                        if (pullRes.medicines > 0) {
+                            await refreshMedicines();
+                        }
+                    }
+                } catch (syncErr) {
+                    console.warn('[AutoSync] Cloud hydration check skipped:', syncErr);
+                }
+            }
             if (u?.pharmacyName) {
                 // Initialize settings with pharmacy name and plan info
                 const newSettings = initializeSettingsFromUserMetadata(u.pharmacyName);
@@ -311,7 +342,7 @@ function App() {
         });
 
         return () => unsubscribe();
-    }, []);
+    }, [refreshMedicines]);
 
     // Handle logout
     const handleLogout = async () => {

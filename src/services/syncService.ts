@@ -1,4 +1,5 @@
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
+import { supabase as authSupabase } from './auth';
 import { networkStatus } from './networkStatus';
 import {
     SyncQueueItem,
@@ -17,12 +18,16 @@ class SyncService {
     private listeners: Set<(status: SyncStatus) => void> = new Set();
 
     constructor() {
-        // Initialize Supabase client
-        const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-        const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+        // Use authenticated singleton Supabase client if available
+        if (authSupabase) {
+            this.supabase = authSupabase;
+        } else {
+            const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+            const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
 
-        if (supabaseUrl && supabaseKey) {
-            this.supabase = createClient(supabaseUrl, supabaseKey);
+            if (supabaseUrl && supabaseKey) {
+                this.supabase = createClient(supabaseUrl, supabaseKey);
+            }
         }
 
         // Start listening for network changes
@@ -207,7 +212,7 @@ class SyncService {
         }
     }
 
-    /** Pull data from cloud and merge with local */
+    /** Pull data from cloud and restore into local IndexedDB */
     async pullFromCloud(): Promise<{ medicines: number; bills: number }> {
         if (!this.supabase || !this.clientId) {
             throw new Error('Sync not initialized');
@@ -231,12 +236,18 @@ class SyncService {
 
         if (billError) throw billError;
 
-        // TODO: Merge with local IndexedDB data
-        // This would need to compare versions and handle conflicts
+        // Save cloud records into local IndexedDB
+        const { saveCloudRecordsToLocal } = await import('./storage');
+        const medItems = (medicines || []).map(m => m.data).filter(Boolean);
+        const billItems = (bills || []).map(b => b.data).filter(Boolean);
+
+        const restored = await saveCloudRecordsToLocal(medItems, billItems);
+
+        console.log(`[SyncService] Cloud pull complete: restored ${restored.medicinesRestored} medicines, ${restored.billsRestored} bills`);
 
         return {
-            medicines: medicines?.length || 0,
-            bills: bills?.length || 0
+            medicines: restored.medicinesRestored,
+            bills: restored.billsRestored
         };
     }
 

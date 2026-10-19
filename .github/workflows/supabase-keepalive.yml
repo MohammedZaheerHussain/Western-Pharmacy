@@ -1,0 +1,39 @@
+name: Supabase Keep-Alive Ping
+
+on:
+  schedule:
+    # Runs every 3 days at 05:00 UTC (Supabase pauses after 7 days of inactivity)
+    - cron: '0 5 */3 * *'
+  workflow_dispatch: # Allows manual trigger from GitHub Actions tab
+
+jobs:
+  keepalive:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping Supabase REST API
+        run: |
+          SUPABASE_URL="${{ secrets.SUPABASE_URL }}"
+          if [ -z "$SUPABASE_URL" ]; then
+            SUPABASE_URL="https://xrdssrbysinfyydjmpaw.supabase.co"
+          fi
+          
+          ANON_KEY="${{ secrets.SUPABASE_ANON_KEY }}"
+          
+          echo "Sending keep-alive ping to Supabase: $SUPABASE_URL"
+          
+          if [ -n "$ANON_KEY" ]; then
+            HTTP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" \
+              -H "apikey: $ANON_KEY" \
+              -H "Authorization: Bearer $ANON_KEY" \
+              "$SUPABASE_URL/rest/v1/client_medicines?select=id&limit=1")
+          else
+            # Public ping if secrets not set yet
+            HTTP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" "$SUPABASE_URL")
+          fi
+          
+          echo "Supabase responded with HTTP status: $HTTP_STATUS"
+          if [ "$HTTP_STATUS" -ge 200 ] && [ "$HTTP_STATUS" -lt 500 ]; then
+            echo "Keep-alive ping successful. Database is active!"
+          else
+            echo "Warning: Response code $HTTP_STATUS"
+          fi

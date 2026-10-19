@@ -912,6 +912,39 @@ export async function restoreFromBackup(backupData: BackupData, options: {
     return { medicinesRestored, billsRestored };
 }
 
+/**
+ * Save records pulled from Supabase cloud into local IndexedDB
+ * Used when a client logs into a newly repaired PC or new browser
+ */
+export async function saveCloudRecordsToLocal(
+    medicines: Medicine[],
+    bills: Bill[] = []
+): Promise<{ medicinesRestored: number; billsRestored: number }> {
+    const db = await getDB();
+    let medicinesRestored = 0;
+    let billsRestored = 0;
+
+    if (medicines && medicines.length > 0) {
+        const txMedicines = db.transaction('medicines', 'readwrite');
+        for (const medicine of medicines) {
+            await txMedicines.store.put(medicine);
+            medicinesRestored++;
+        }
+        await txMedicines.done;
+    }
+
+    if (bills && bills.length > 0) {
+        const txBills = db.transaction('bills', 'readwrite');
+        for (const bill of bills) {
+            await txBills.store.put(bill);
+            billsRestored++;
+        }
+        await txBills.done;
+    }
+
+    return { medicinesRestored, billsRestored };
+}
+
 /** Parse backup file content */
 export function parseBackupFile(content: string): { valid: boolean; data?: BackupData; error?: string } {
     try {

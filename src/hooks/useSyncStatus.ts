@@ -33,6 +33,9 @@ export interface UseSyncStatusResult {
         bills: number;
         errors: string[];
     }>;
+
+    /** Restore all medicines & bills from cloud into local IndexedDB */
+    restoreFromCloud: () => Promise<{ medicines: number; bills: number }>;
 }
 
 export function useSyncStatus(): UseSyncStatusResult {
@@ -75,6 +78,26 @@ export function useSyncStatus(): UseSyncStatusResult {
         }
     }, []);
 
+    const restoreFromCloud = useCallback(async () => {
+        setStatus(prev => ({ ...prev, syncing: true }));
+        try {
+            const result = await syncService.pullFromCloud();
+            setStatus(prev => ({
+                ...prev,
+                syncing: false,
+                lastSyncedAt: new Date().toISOString()
+            }));
+            return result;
+        } catch (error) {
+            setStatus(prev => ({
+                ...prev,
+                syncing: false,
+                error: String(error)
+            }));
+            throw error;
+        }
+    }, []);
+
     // Calculate time since last sync
     const getLastSyncedAgo = (): string => {
         if (!status.lastSyncedAt) return 'Never';
@@ -100,6 +123,7 @@ export function useSyncStatus(): UseSyncStatusResult {
         lastSyncedAgo: getLastSyncedAgo(),
         error: status.error,
         syncNow,
-        fullBackup
+        fullBackup,
+        restoreFromCloud
     };
 }
