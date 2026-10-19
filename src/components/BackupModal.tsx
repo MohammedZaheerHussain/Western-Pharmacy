@@ -1,9 +1,8 @@
-// BackupModal - Full data backup and restore functionality
-
 import { useState, useRef, useEffect } from 'react';
-import { X, Download, Upload, AlertTriangle, CheckCircle, HardDrive, Clock, Shield } from 'lucide-react';
+import { X, Download, Upload, AlertTriangle, CheckCircle, HardDrive, Clock, Shield, CloudDownload } from 'lucide-react';
 import * as storage from '../services/storage';
 import { restoreFromBackup } from '../services/guardedOperations';
+import { syncService } from '../services/syncService';
 
 interface BackupModalProps {
     isOpen: boolean;
@@ -91,6 +90,33 @@ export function BackupModal({ isOpen, onClose, onBackupComplete, onRestoreComple
             onRestoreComplete?.();
         } catch (err) {
             setMessage({ type: 'error', text: 'Failed to restore: ' + (err as Error).message });
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const handleCloudRestore = async () => {
+        setLoading(true);
+        setMessage(null);
+        try {
+            const result = await syncService.pullFromCloud();
+            if (result.medicines === 0 && result.bills === 0) {
+                setMessage({
+                    type: 'success',
+                    text: 'Cloud check completed. No records found in your Supabase account yet.'
+                });
+            } else {
+                setMessage({
+                    type: 'success',
+                    text: `Cloud restore successful! Restored ${result.medicines} medicines and ${result.bills} bills from Supabase.`
+                });
+                onRestoreComplete?.();
+            }
+        } catch (err) {
+            setMessage({
+                type: 'error',
+                text: 'Cloud restore failed: ' + (err instanceof Error ? err.message : String(err))
+            });
         } finally {
             setLoading(false);
         }
@@ -217,9 +243,34 @@ export function BackupModal({ isOpen, onClose, onBackupComplete, onRestoreComple
 
                             {!restorePreview ? (
                                 <>
+                                    {/* Option 1: One-Click Cloud Restore */}
+                                    <div className="bg-gradient-to-br from-blue-50 to-indigo-50 border border-blue-200 rounded-xl p-4 flex flex-col gap-2">
+                                        <div className="flex items-center gap-2">
+                                            <CloudDownload className="text-blue-600" size={20} />
+                                            <h4 className="font-semibold text-blue-900 text-sm">Restore from Supabase Cloud</h4>
+                                        </div>
+                                        <p className="text-xs text-blue-700">
+                                            Instantly download your latest medicine inventory and bills saved in the cloud. Perfect after a computer repair or new device setup.
+                                        </p>
+                                        <button
+                                            onClick={handleCloudRestore}
+                                            disabled={loading}
+                                            className="mt-2 py-2.5 px-4 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium transition-colors flex items-center justify-center gap-2 disabled:opacity-50 shadow-sm"
+                                        >
+                                            <CloudDownload size={16} />
+                                            {loading ? 'Restoring from Cloud...' : 'Pull Latest Cloud Data'}
+                                        </button>
+                                    </div>
+
+                                    <div className="relative flex py-1 items-center">
+                                        <div className="flex-grow border-t border-gray-200"></div>
+                                        <span className="flex-shrink mx-3 text-gray-400 text-xs font-medium">OR RESTORE FROM LOCAL FILE</span>
+                                        <div className="flex-grow border-t border-gray-200"></div>
+                                    </div>
+
                                     <div
                                         onClick={() => fileInputRef.current?.click()}
-                                        className="border-2 border-dashed border-gray-300 rounded-xl p-8 
+                                        className="border-2 border-dashed border-gray-300 rounded-xl p-6 
                                                  text-center cursor-pointer hover:border-blue-400 
                                                  hover:bg-blue-50 transition-all"
                                     >
